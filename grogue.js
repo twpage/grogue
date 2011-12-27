@@ -38,8 +38,8 @@ var grogue = function ($, tilecodes, level_gen) {
   
     var x, y;
     
-    for (x = 0; x < 15; x += 1) {
-      for (y = 0; y < 13; y += 1) {
+    for (x = 0; x < constants.game_tiles_width; x += 1) {
+      for (y = 0; y < constants.game_tiles_height; y += 1) {
         drawGridAt({"x": x, "y": y});
       }
     }
@@ -51,14 +51,19 @@ var grogue = function ($, tilecodes, level_gen) {
 	var i, x, y, gx, gy, item, fore_color;
 	var inventory = my_player.inventoryGet();
 	
-	for (i = 0; i < inventory.length; i += 1) {
-	  item = inventory[i];
-	  fore_color = item.getColor();
-	  x = i % 5;
-	  y = Math.floor(i / 5);
+	for (i = 0; i < constants.inventory_max_items; i += 1) {
+	  x = i % constants.inventory_tiles_width;
+	  y = Math.floor(i / constants.inventory_tiles_width);
 	  gx = x * constants.tile_dst_width;
 	  gy = y * constants.tile_dst_height;
-	  drawTileOn(ctx_inventory, my_tile_codes[item.getCode()], gx, gy, constants.tile_dst_width, constants.tile_dst_height, fore_color, colors.normal_bg);
+	  
+	  if (i < inventory.length) {
+		item = inventory[i];
+		fore_color = item.getColor();
+		drawTileOn(ctx_inventory, my_tile_codes[item.getCode()], gx, gy, constants.tile_dst_width, constants.tile_dst_height, fore_color, colors.normal_bg);
+	  } else {
+		drawTileOn(ctx_inventory, my_tile_codes['SPACE'], gx, gy, constants.tile_dst_width, constants.tile_dst_height, colors.normal_fore, colors.normal_bg);
+	  }
 	}
   };
   
@@ -171,6 +176,51 @@ var grogue = function ($, tilecodes, level_gen) {
 	}
   };
   
+  var doPlayerDropItem = function (inv_result) {
+  // drop item onto the player's current location
+	
+	var item, player_xy;
+	
+	// see where the player is
+	player_xy = my_player.getLocation();
+	
+	// is something there already?
+	item = my_dungeon.getItemAt(player_xy);
+	
+	if (item == null) {
+	  my_dungeon.setItemAt(player_xy, inv_result.item);
+	  my_player.inventoryRemove(inv_result.index);
+	  drawMapAt(player_xy);
+	  drawInventory();
+	  return true;
+	  
+	} else {
+	  return false;
+	}
+  };
+  
+  var doPlayerUseItem = function (inv_result) {
+  // use/activate/equip an item from inventory
+  
+  
+  };
+
+  getInventoryItemFromCoords = function (grid_xy) {
+  // returns the inventory item and array index
+  
+	var inventory = my_player.inventoryGet();
+	var i, item;
+	
+	i = (grid_xy.y * constants.inventory_tiles_width) + grid_xy.x;
+	if (i >= inventory.length) {
+	  item = null;
+	} else {
+	  item = inventory[i];
+	}
+	
+	return {"item": item, "index": i};
+  };
+  
   ////////////////////////////////////////////////////////////////////////////////  
   // MOUSE EVENTS
   ////////////////////////////////////////////////////////////////////////////////
@@ -180,10 +230,11 @@ var grogue = function ($, tilecodes, level_gen) {
   
   doEventGainFocus = function (grid_xy) {
     var html, mob, terrain, item;
-    
-    mob = my_dungeon.getMonsterAt(grid_xy);
-    terrain = my_dungeon.getTerrainAt(grid_xy);
-    item = my_dungeon.getItemAt(grid_xy);
+    var map_xy = {"x": grid_xy.x + my_screen.x, "y": grid_xy.y + my_screen.y};
+	
+    mob = my_dungeon.getMonsterAt(map_xy);
+    terrain = my_dungeon.getTerrainAt(map_xy);
+    item = my_dungeon.getItemAt(map_xy);
     
     if (mob !== null) {
       html = 'a ' + mob.getName() + ' is here';
@@ -193,7 +244,7 @@ var grogue = function ($, tilecodes, level_gen) {
       html = terrain.getName();
     }
     
-    html += ' at (' + grid_xy.x + ', ' + grid_xy.y + ')';
+    html += ' at (' + map_xy.x + ', ' + map_xy.y + ')';
     $('#id_div_hover').html(html);
     my_grid.drawBorderAt(grid_xy, "rgba(255, 255, 255, 1.0)");
   };
@@ -202,8 +253,22 @@ var grogue = function ($, tilecodes, level_gen) {
     drawGridAt(grid_xy);	
   };
   
-  doInventoryEventMousedown = function (grid_xy) {
-    //$('#id_div_click').html('<p>clicked on grid tile (' + grid_xy.x + ', ' + grid_xy.y + ')</p>');
+  doInventoryEventMousedown = function (grid_xy, shiftKey) {
+    
+	// figure out what inventory item we just clicked on
+	var inv_result = getInventoryItemFromCoords(grid_xy);
+	
+	if (inv_result.item !== null) {
+	  if (shiftKey === true) {
+		// drop
+		return doPlayerDropItem(inv_result);
+	  } else {
+		// equip
+		return doPlayerUseItem(inv_result);
+	  }
+	}
+	
+	return false;
   };
   
   doInventoryEventGainFocus = function (grid_xy) {
@@ -219,7 +284,7 @@ var grogue = function ($, tilecodes, level_gen) {
   ////////////////////////////////////////////////////////////////////////////////
 
   initGame = function ( ) {
-    var result, i, locations;
+    var result, i, u, locations, item, mob;
     
     //my_level_generator = level_generator();
     my_player = monsterFactory({name: 'Hero', family: monsterFamily_Player});
@@ -231,12 +296,19 @@ var grogue = function ($, tilecodes, level_gen) {
 	locations = my_dungeon.getWalkableLocations().locations_xy;
 	fisherYates(locations);
 	
-	for (i = 0; i < 5; i += 1) {
-	  my_dungeon.setItemAt(locations[i], itemFactory({name: 'sword', family: itemFamily_Weapon}));
+	for (i = 0; i < 20; i += 1) {
+	  u = Math.random();
+	  if (u < 0.33) {
+		item = itemFactory({name: 'sword', family: itemFamily_Blade});
+	  } else if (u < 0.66) {
+		item = itemFactory({name: 'pistol', family: itemFamily_Firearm});
+	  } else {
+		item = itemFactory({name: 'grog', family: itemFamily_Flask});
+	  }
+	  my_dungeon.setItemAt(locations[i], item);
 	}
-	//sword = itemFactory({name: 'sword', family: itemFamily_Weapon});
-	//my_dungeon.setItemAt(result.start_xy, sword);
 	
+    drawInventory();
     drawGame();
   };
   

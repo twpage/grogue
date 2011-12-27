@@ -163,11 +163,15 @@ var monsterFactory = function (spec) {
     that.setLocation = function (grid_xy) {
         my.location = grid_xy;
         return true;
-    }
+    };
     
     that.inventoryAdd = function (item) {
         my.inventory.push(item);
-    }
+    };
+    
+    that.inventoryRemove = function (index) {
+        my.inventory.splice(index, 1);
+    };
     
     that.inventoryGet = function ( ) {
         return my.inventory;
@@ -332,7 +336,10 @@ var levelFactory = function (spec) {
 ////////////////////////////////////////////////////////////
 
 var monsterFamily_Player = monsterFamilyFactory({name: 'player', code: 'AT', color: colors.hf_blue});
-var itemFamily_Weapon = itemFamilyFactory({name: 'weapon', code: 'SLASH', color: colors.hf_orange});
+var itemFamily_Blade = itemFamilyFactory({name: 'blade', code: 'SLASH', color: colors.steel});
+var itemFamily_Firearm = itemFamilyFactory({name: 'firearm', code: 'GUN_RIGHT', color: colors.hf_orange});
+var itemFamily_Flask = itemFamilyFactory({name: 'flask', code: 'BANG', color: colors.pink});
+
 var terrain_Floor = terrainFactory({name: 'floor', code: 'PERIOD'});
 var terrain_Wall = terrainFactory({name: 'wall', code: 'HASH', is_walkable: false});
 

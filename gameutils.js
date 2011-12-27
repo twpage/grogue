@@ -19,8 +19,11 @@ var constants = {
   tile_dst_height: 32,
   
   game_tiles_width: 15,
-  game_tiles_height: 13
+  game_tiles_height: 13,
   
+  inventory_tiles_width: 5,
+  inventory_tiles_height: 2,
+  inventory_max_items: 10
 
 };
 
@@ -28,5 +31,8 @@ var colors = {
   normal_fore: 'rgb(255, 255, 255)',
   normal_bg: 'rgb(50, 50, 50)',
   hf_blue: '#0082FF',
-  hf_orange: '#FF7E00'
+  hf_orange: '#FF7E00',
+  red: 'rgb(255, 0, 0)',
+  pink: '#FF1493',
+  steel: '#B0C4DE'
 };

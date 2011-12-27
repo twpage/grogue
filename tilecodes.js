@@ -99,6 +99,8 @@ var getTileCodes = function ( ) {
 		FRANC: 127,
 		YEN: 125,
 		POUND: 124,
-		CENTS: 123
+		CENTS: 123,
+		GUN_RIGHT: 137,
+		GUN_LEFT: 138
 	};
 };
