@@ -223,8 +223,8 @@ var level_generator = function ( ) {
 	
 		// first get a list of all walkable tiles in this level
 		var walkable = lvl.getWalkableLocations();
-		var walkable_xy_lst = walkable.walkable_xy;
-		var walkable_key_lst = walkable.walkable_key;
+		var walkable_xy_lst = walkable.locations_xy;
+		var walkable_key_lst = walkable.locations_key;
 		
 		// now start at the first walking square and flood fill
 		var connected_lst = [];
@@ -262,7 +262,7 @@ var level_generator = function ( ) {
 				//break;
 			//}
         }
-		alert("attempts: " + attempt);
+		//alert("attempts: " + attempt);
 		
 		//doRandomizeBorders(dungeon);
 		

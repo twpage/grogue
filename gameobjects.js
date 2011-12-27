@@ -13,6 +13,8 @@ var terrainFactory = function (spec) {
     var my = {};
     my.name = spec.name;
     my.code = spec.code || 'SPACE';
+    my.color = spec.color || colors.normal_fore;
+    my.bg_color = spec.bg_color || colors.normal_bg;
     
     if (spec.is_walkable === undefined) {
         my.is_walkable = true;
@@ -28,22 +30,12 @@ var terrainFactory = function (spec) {
     
     // that public
     var that = {};
-    
-    that.getName = function ( ) {
-        return my.name;
-    };
-    
-    that.isWalkable = function ( ) {
-        return my.is_walkable;
-    };
-    
-    that.isOpaque = function ( ) {
-        return my.is_opaque;
-    };
-
-    that.getCode = function ( ) {
-        return my.code;
-    };
+    that.getName = function ( ) { return my.name; };
+    that.isWalkable = function ( ) { return my.is_walkable; };
+    that.isOpaque = function ( ) { return my.is_opaque; };
+    that.getCode = function ( ) { return my.code; };
+    that.getColor = function ( ) { return my.color; };
+    that.getBackgroundColor = function ( ) { return my.bg_color; };
 
     return that;
 };
@@ -55,17 +47,24 @@ var itemFamilyFactory = function (spec) {
     var my = {};
     my.name = spec.name;
     my.code = spec.code;
+    if (spec.color === undefined) {
+        my.color = colors.normal_fore;
+    } else {
+        my.color = spec.color;
+    }
+
+    if (spec.bg_color === undefined) {
+        my.bg_color = colors.normal_bg;
+    } else {
+        my.bg_color = spec.bg_color;
+    }
     
     // that public
     var that = {};
-    
-    that.getName = function ( ) {
-        return my.name;
-    };
-    
-    that.getCode = function ( ) {
-        return my.code;
-    };
+    that.getName = function ( ) { return my.name; };
+    that.getCode = function ( ) { return my.code; };
+    that.getColor = function ( ) { return my.color; };
+    that.getBackgroundColor = function ( ) { return my.bg_color; };
     
     return that;
 };
@@ -77,22 +76,26 @@ var itemFactory = function (spec) {
     var my = {};
     my.name = spec.name;
     my.family = spec.family;
+    if (spec.color === undefined) {
+        my.color = my.family.getColor();
+    } else {
+        my.color = spec.color;
+    }
     
+    if (spec.bg_color === undefined) {
+        my.bg_color = my.family.getBackgroundColor();
+    } else {
+        my.bg_color = spec.bg_color;
+    }
+
     // that public
     var that = {};
-    
-    that.getName = function ( ) {
-        return my.name;
-    };
-    
-    that.getFamily = function ( ) {
-        return my.family;
-    };
-    
-    that.getCode = function ( ) {
-        return my.family.getCode();
-    };
-    
+    that.getName = function ( ) { return my.name; };
+    that.getFamily = function ( ) { return my.family; };
+    that.getCode = function ( ) { return my.family.getCode(); };
+    that.getColor = function ( ) { return my.color; };
+    that.getBackgroundColor = function ( ) { return my.bg_color; };
+
     return that;
 };
 
@@ -103,17 +106,24 @@ var monsterFamilyFactory = function (spec) {
     var my = {};
     my.name = spec.name;
     my.code = spec.code;
+    if (spec.color === undefined) {
+        my.color = colors.normal_fore;
+    } else {
+        my.color = spec.color;
+    }
+    
+    if (spec.bg_color === undefined) {
+        my.bg_color = colors.normal_bg;
+    } else {
+        my.bg_color = spec.bg_color;
+    }
     
     // that public
     var that = {};
-    
-    that.getName = function ( ) {
-        return my.name;
-    };
-    
-    that.getCode = function ( ) {
-        return my.code;
-    };
+    that.getName = function ( ) { return my.name; };
+    that.getCode = function ( ) { return my.code; };
+    that.getColor = function ( ) { return my.color; };
+    that.getBackgroundColor = function ( ) { return my.bg_color; };
     
     return that;
 };
@@ -125,13 +135,28 @@ var monsterFactory = function (spec) {
     var my = {};
     my.name = spec.name;
     my.family = spec.family;
-    my.location = {}
+    my.location = {};
+    my.inventory = [];
+    
+    if (spec.color === undefined) {
+        my.color = my.family.getColor();
+    } else {
+        my.color = spec.color;
+    }
+    
+    if (spec.bg_color === undefined) {
+        my.bg_color = my.family.getBackgroundColor();
+    } else {
+        my.bg_color = spec.bg_color;
+    }
     
     // that public
     var that = {};
     
     that.getName = function ( ) { return my.name; };
     that.getFamily = function ( ) { return my.family; };
+    that.getColor = function ( ) { return my.color; };
+    that.getBackgroundColor = function ( ) { return my.bg_color; };
     that.getCode = function ( ) { return my.family.getCode(); };
     that.getLocation = function ( ) { return my.location; };
     
@@ -139,6 +164,14 @@ var monsterFactory = function (spec) {
         my.location = grid_xy;
         return true;
     }
+    
+    that.inventoryAdd = function (item) {
+        my.inventory.push(item);
+    }
+    
+    that.inventoryGet = function ( ) {
+        return my.inventory;
+    };
     
     return that;
 };
@@ -214,6 +247,17 @@ var levelFactory = function (spec) {
         return true;
     };
     
+    that.removeItemAt = function (grid_xy) {
+        if (that.isValidCoordinate(grid_xy) === false) {
+            return false;
+        }
+        
+        var key = my.xyKey(grid_xy);
+        
+        delete my.items[key];
+        return true;
+    };
+   
     that.getMonsterAt = function (grid_xy) {
         var key = my.xyKey(grid_xy);
         var mob = my.monsters[key];
@@ -279,7 +323,7 @@ var levelFactory = function (spec) {
             }
         }
         
-        return {"walkable_xy": walkable, "walkable_key": walkable_str};
+        return {"locations_xy": walkable, "locations_key": walkable_str};
     };
     
     return that;
@@ -287,29 +331,30 @@ var levelFactory = function (spec) {
 
 ////////////////////////////////////////////////////////////
 
-var monsterFamily_Player = monsterFamilyFactory({name: 'player', code: 'AT'});
+var monsterFamily_Player = monsterFamilyFactory({name: 'player', code: 'AT', color: colors.hf_blue});
+var itemFamily_Weapon = itemFamilyFactory({name: 'weapon', code: 'SLASH', color: colors.hf_orange});
 var terrain_Floor = terrainFactory({name: 'floor', code: 'PERIOD'});
 var terrain_Wall = terrainFactory({name: 'wall', code: 'HASH', is_walkable: false});
 
 ////////////////////////////////////////////////////////////
 
-var createDungeon = function (width, height) {
-    var x, y;
-    var dungeon = levelFactory({'width': width, 'height': height});
+//var createDungeon = function (width, height) {
+    //var x, y;
+    //var dungeon = levelFactory({'width': width, 'height': height});
 
-    var weapon = itemFamilyFactory({'name': 'weapon', 'code': 'SLASH'});
-    var sword = itemFactory({'name': 'sword', 'family': weapon});
+    //var weapon = itemFamilyFactory({'name': 'weapon', 'code': 'SLASH'});
+    //var sword = itemFactory({'name': 'sword', 'family': weapon});
     
-    var crabs = monsterFamilyFactory({'name': 'crabs', 'code': 'C'});
-    var giant_crab = monsterFactory({name: 'giant crab', family: crabs});
+    //var crabs = monsterFamilyFactory({'name': 'crabs', 'code': 'C'});
+    //var giant_crab = monsterFactory({name: 'giant crab', family: crabs});
 
-    for (x = 0; x < dungeon.width; x += 1) {
-        for (y = 0; y < dungeon.height; y += 1) {
-            dungeon.setTerrainAt({"x": x, "y": y}, terrain_Floor);
-        }
-    };
+    //for (x = 0; x < dungeon.width; x += 1) {
+        //for (y = 0; y < dungeon.height; y += 1) {
+            //dungeon.setTerrainAt({"x": x, "y": y}, terrain_Floor);
+        //}
+    //};
     
-    dungeon.setItemAt({"x": 2, "y": 2}, sword);
-    dungeon.setMonsterAt({"x": 4, "y": 3}, giant_crab);
-    return dungeon;
-};
+    //dungeon.setItemAt({"x": 2, "y": 2}, sword);
+    //dungeon.setMonsterAt({"x": 4, "y": 3}, giant_crab);
+    //return dungeon;
+//};

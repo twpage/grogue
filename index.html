@@ -5,6 +5,7 @@
         <script type="text/javascript" src="gridmangler.js"></script>
 		<script type="text/javascript" src="eyeofthetiler.js"></script>
         <script type="text/javascript" src="tilecodes.js"></script>
+		<script type="text/javascript" src="gameutils.js"></script>		
 		<script type="text/javascript" src="gameobjects.js"></script>
         <script type="text/javascript" src="levelgen.js"></script>
         <script type="text/javascript" src="grogue.js"></script>
@@ -13,7 +14,7 @@
 			var game;
 			
 			$(document).ready(function ( ) {
-				var imageFiles = ['terminalf_transparent.png']
+				var imageFiles = [constants.tiles_image];
 				
 				/////////////////////////////////////////////////////////
 				// Helper function, used below.
@@ -30,7 +31,7 @@
 				  checklist = this.toArray();
 				  var img;
 				  this.each(function() {
-					img = $('<img />').attr({ src: this });
+					img = $('<img />').attr({ src: this, id: this });
 					$('#id_div_preload').append(img);
 					img.load(function() {
 					  checklist.remove($(this).attr('src'));
@@ -60,6 +61,10 @@
     <body>
         <h1>welcome to my underground lair</h1>
         <canvas id="id_cnv_game" width="360" height="416" style="border-style: solid; border-color: black;">
+            arg!
+        </canvas>
+		
+		<canvas id="id_cnv_inventory" width="120" height="64" style="border-style: solid; border-color: black;">
             arg!
         </canvas>
 		
