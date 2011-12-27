@@ -5,14 +5,28 @@ var grogue = function ($, tilecodes, level_gen) {
   var my_dungeon, my_player;
   var my_level_generator = level_gen;
   var my_terrain = {};
-  var my_screen = {"x": 0, "y": 0, "width": 15, "height": 13};
+  var my_screen = {"x": 0, "y": 0, "width": constants.game_tiles_width, "height": constants.game_tiles_height};
   
   ////////////////////////////////////////////////////////////////////////////////
   // PRIVATE FUNCTIONS
   ////////////////////////////////////////////////////////////////////////////////
   
-  setScreenOffset = function ( ) {
-  
+  updateScreenOffset = function ( ) {
+	var orig_screen = {"x": my_screen.x, "y": my_screen.y};
+	var x, y, w2, h2;
+	
+	// center on player coords
+	var player_xy = my_player.getLocation();
+	w2 = Math.floor(my_screen.width / 2);
+	h2 = Math.floor(my_screen.height / 2);
+	
+	x = Math.min(my_dungeon.width - my_screen.width, Math.max(0, player_xy.x - w2));
+	y = Math.min(my_dungeon.height - my_screen.height, Math.max(0, player_xy.y - h2));
+	
+	my_screen.x = x;
+	my_screen.y = y;
+	
+	return ((my_screen.x !== orig_screen.x) || (my_screen.y !== orig_screen.y));
   };
   
   ////////////////////////////////////////////////////////////////////////////////  
@@ -73,13 +87,13 @@ var grogue = function ($, tilecodes, level_gen) {
 	context.drawImage(cnv_copy, x, y, width, height);
   };
   
-  drawGridAt = function (grid_xy) {
-    var terrain, item, mob, fore_color, bg_color, tile_code, grid_x, grid_y;
-    
-    is_player = compareCoords(grid_xy, my_player.getLocation());
-    mob = my_dungeon.getMonsterAt(grid_xy);
-    terrain = my_dungeon.getTerrainAt(grid_xy);
-    item = my_dungeon.getItemAt(grid_xy);
+  drawMapAt = function (map_xy) {
+	grid_xy = {"x": map_xy.x - my_screen.x, "y": map_xy.y - my_screen.y};
+	
+    is_player = compareCoords(map_xy, my_player.getLocation());
+    mob = my_dungeon.getMonsterAt(map_xy);
+    terrain = my_dungeon.getTerrainAt(map_xy);
+    item = my_dungeon.getItemAt(map_xy);
     
     if (mob !== null) {
 	  fore_color = mob.getColor();
@@ -100,7 +114,13 @@ var grogue = function ($, tilecodes, level_gen) {
 	grid_x = grid_xy.x * constants.tile_dst_width;
 	grid_y = grid_xy.y * constants.tile_dst_height;
 	//context, tile_code, x, y, width, height, fore_color, bg_color) {	
-	drawTileOn(ctx_game, tile_code, grid_x, grid_y, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color);
+	drawTileOn(ctx_game, tile_code, grid_x, grid_y, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color);	
+  };
+  
+  drawGridAt = function (grid_xy) {
+    var terrain, item, mob, fore_color, bg_color, tile_code, grid_x, grid_y;
+    map_xy = {"x": grid_xy.x + my_screen.x, "y": grid_xy.y + my_screen.y};
+	drawMapAt(map_xy);
   };
   
   ////////////////////////////////////////////////////////////////////////////////  
@@ -108,7 +128,7 @@ var grogue = function ($, tilecodes, level_gen) {
   ////////////////////////////////////////////////////////////////////////////////
 
   doPlayerMove = function (offset_xy) {
-	var player_xy, new_xy, terrain;
+	var player_xy, new_xy, terrain, update;
 	
 	player_xy = my_player.getLocation();
 	new_xy = {x: player_xy.x + offset_xy.x, y: player_xy.y + offset_xy.y};
@@ -126,8 +146,15 @@ var grogue = function ($, tilecodes, level_gen) {
 	
 	my_dungeon.removeMonsterAt(player_xy);
 	my_dungeon.setMonsterAt(new_xy, my_player);
-	drawGridAt(player_xy);
-	drawGridAt(new_xy);
+	
+	update = updateScreenOffset();
+	
+	if (update === true) {
+	  drawGame();
+	} else {
+	  drawMapAt(player_xy);
+	  drawMapAt(new_xy);
+	}
   };
   
   doPlayerAction = function ( ) {
@@ -175,7 +202,7 @@ var grogue = function ($, tilecodes, level_gen) {
     drawGridAt(grid_xy);	
   };
   
-    doInventoryEventMousedown = function (grid_xy) {
+  doInventoryEventMousedown = function (grid_xy) {
     //$('#id_div_click').html('<p>clicked on grid tile (' + grid_xy.x + ', ' + grid_xy.y + ')</p>');
   };
   
@@ -196,7 +223,8 @@ var grogue = function ($, tilecodes, level_gen) {
     
     //my_level_generator = level_generator();
     my_player = monsterFactory({name: 'Hero', family: monsterFamily_Player});
-    result = my_level_generator.createRandomCaveLevel(15, 13); //createDungeon(15, 13);  
+    //result = my_level_generator.createRandomCaveLevel(constants.game_tiles_width, constants.game_tiles_height);
+	result = my_level_generator.createRandomCaveLevel(constants.game_tiles_width * 2, constants.game_tiles_height * 2);
     my_dungeon = result.level;
     my_dungeon.setMonsterAt(result.start_xy, my_player);
 	
