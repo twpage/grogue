@@ -6,6 +6,23 @@ var compareTerrain = function (t1, t2) {
     return t1.getName() === t2.getName();
 };
 
+var compareItemToFamily = function (i1, f2) {
+    return compareItemFamily(i1.getFamily(), f2);
+};
+
+var compareItemFamily = function (f1, f2) {
+    return f1.getName() === f2.getName();
+};
+
+var xyKey = function (grid_xy) {
+    return grid_xy.x + "+" + grid_xy.y;
+};
+
+var keyXY = function (key) {
+    var arr = key.split("+");
+    return {"x": arr[0], "y": arr[1]};
+};
+
 var terrainFactory = function (spec) {
     // other private instance variables
     
@@ -30,6 +47,7 @@ var terrainFactory = function (spec) {
     
     // that public
     var that = {};
+    that.objtype = 'terrain';
     that.getName = function ( ) { return my.name; };
     that.isWalkable = function ( ) { return my.is_walkable; };
     that.isOpaque = function ( ) { return my.is_opaque; };
@@ -61,6 +79,7 @@ var itemFamilyFactory = function (spec) {
     
     // that public
     var that = {};
+    that.objtype = 'item_family';
     that.getName = function ( ) { return my.name; };
     that.getCode = function ( ) { return my.code; };
     that.getColor = function ( ) { return my.color; };
@@ -88,11 +107,19 @@ var itemFactory = function (spec) {
         my.bg_color = spec.bg_color;
     }
 
+    // some items in the same family can have different codes (bootay)
+    if (spec.code === undefined) {
+        my.code = my.family.getCode();
+    } else {
+        my.code = spec.code;
+    }
+    
     // that public
     var that = {};
+    that.objtype = 'item';
     that.getName = function ( ) { return my.name; };
     that.getFamily = function ( ) { return my.family; };
-    that.getCode = function ( ) { return my.family.getCode(); };
+    that.getCode = function ( ) { return my.code; };
     that.getColor = function ( ) { return my.color; };
     that.getBackgroundColor = function ( ) { return my.bg_color; };
 
@@ -120,6 +147,7 @@ var monsterFamilyFactory = function (spec) {
     
     // that public
     var that = {};
+    that.objtype = 'monster_family';
     that.getName = function ( ) { return my.name; };
     that.getCode = function ( ) { return my.code; };
     that.getColor = function ( ) { return my.color; };
@@ -137,6 +165,9 @@ var monsterFactory = function (spec) {
     my.family = spec.family;
     my.location = {};
     my.inventory = [];
+    my.equip = {};
+    my.fov = {};
+    my.memory = {};
     
     if (spec.color === undefined) {
         my.color = my.family.getColor();
@@ -152,6 +183,7 @@ var monsterFactory = function (spec) {
     
     // that public
     var that = {};
+    that.objtype = 'monster';
     
     that.getName = function ( ) { return my.name; };
     that.getFamily = function ( ) { return my.family; };
@@ -165,8 +197,14 @@ var monsterFactory = function (spec) {
         return true;
     };
     
+    // INVENTORY
+    //////////////////////////////////////////////////
     that.inventoryAdd = function (item) {
+        if (my.inventory.length === constants.inventory_max_items) {
+            return false;
+        }
         my.inventory.push(item);
+        return true;
     };
     
     that.inventoryRemove = function (index) {
@@ -176,6 +214,85 @@ var monsterFactory = function (spec) {
     that.inventoryGet = function ( ) {
         return my.inventory;
     };
+    
+    // EQUIPMENT
+    //////////////////////////////////////////////////
+    that.equipGet = function (equip_slot) {
+        var e = my.equip[equip_slot];
+        
+        if (e === undefined) {
+            return null;
+        } else {
+            return e;
+        }
+    };
+    
+    that.equipSet = function (equip_slot, inv_result) {
+        // see what's already there
+        var current = that.equipGet(equip_slot);
+        
+        my.equip[equip_slot] = inv_result.item;
+        
+
+        if (current === null) {
+            my.inventory.splice(inv_result.index, 1);
+        } else {
+            // replace the old one back to inventory
+            my.inventory[inv_result.index] = current;
+        }
+    };
+    
+    // F. O. V.
+    //////////////////////////////////////////////////
+    that.getFovAt = function (grid_xy) {
+        var key = xyKey(grid_xy);
+        var fov = my.fov[key];
+        
+        if (fov === undefined) {
+            return null;
+        } else {
+            return fov;
+        }
+    };
+    
+    that.setFovAt = function (grid_xy) {
+        var key = xyKey(grid_xy);
+        my.fov[key] = true;
+        
+        return true;
+    };
+    
+    that.clearFov = function ( ) {
+        my.fov = {};
+    };
+    
+    that.getFov = function ( ) { return my.fov; };
+    
+    // MEMORY
+    //////////////////////////////////////////////////
+    that.getMemoryAt = function (grid_xy) {
+        var key = xyKey(grid_xy);
+        var memory = my.memory[key];
+        
+        if (memory === undefined) {
+            return null;
+        } else {
+            return memory;
+        }
+    };
+    
+    that.setMemoryAt = function (grid_xy, mem_obj) {
+        var key = xyKey(grid_xy);
+        my.memory[key] = mem_obj;
+        
+        return true;
+    };
+    
+    that.clearMemory = function ( ) {
+        my.memory = {};
+    };
+    
+    //that.getMemory = function ( ) { return my.memory; };
     
     return that;
 };
@@ -192,15 +309,6 @@ var levelFactory = function (spec) {
     my.items = {};
     my.monsters = {};
     
-    my.xyKey = function (grid_xy) {
-        return grid_xy.x + "+" + grid_xy.y;
-    };
-    
-    my.keyXY = function (key) {
-        var arr = key.split("+");
-        return {"x": arr[0], "y": arr[1]};
-    };
-    
     // that public
     var that = {};
     that.width = my.width;
@@ -208,7 +316,7 @@ var levelFactory = function (spec) {
     that.depth = my.depth;
     
     that.getTerrainAt = function (grid_xy) {
-        var key = my.xyKey(grid_xy);
+        var key = xyKey(grid_xy);
         var terr = my.terrain[key];
         
         if (terr === undefined) {
@@ -223,14 +331,14 @@ var levelFactory = function (spec) {
             return false;
         }
         
-        var key = my.xyKey(grid_xy);
+        var key = xyKey(grid_xy);
         my.terrain[key] = terrain;
         
         return true;
     };
     
     that.getItemAt = function (grid_xy) {
-        var key = my.xyKey(grid_xy);
+        var key = xyKey(grid_xy);
         var item = my.items[key];
         
         if (item === undefined) {
@@ -245,7 +353,7 @@ var levelFactory = function (spec) {
             return false;
         }
         
-        var key = my.xyKey(grid_xy);
+        var key = xyKey(grid_xy);
         my.items[key] = item;
         
         return true;
@@ -256,14 +364,14 @@ var levelFactory = function (spec) {
             return false;
         }
         
-        var key = my.xyKey(grid_xy);
+        var key = xyKey(grid_xy);
         
         delete my.items[key];
         return true;
     };
    
     that.getMonsterAt = function (grid_xy) {
-        var key = my.xyKey(grid_xy);
+        var key = xyKey(grid_xy);
         var mob = my.monsters[key];
         
         if (mob === undefined) {
@@ -278,7 +386,7 @@ var levelFactory = function (spec) {
             return false;
         }
         
-        var key = my.xyKey(grid_xy);
+        var key = xyKey(grid_xy);
         my.monsters[key] = mob;
         mob.setLocation(grid_xy);
         return true;
@@ -289,7 +397,7 @@ var levelFactory = function (spec) {
             return false;
         }
         
-        var key = my.xyKey(grid_xy);
+        var key = xyKey(grid_xy);
         
         delete my.monsters[key];
         return true;
@@ -335,33 +443,17 @@ var levelFactory = function (spec) {
 
 ////////////////////////////////////////////////////////////
 
-var monsterFamily_Player = monsterFamilyFactory({name: 'player', code: 'AT', color: colors.hf_blue});
 var itemFamily_Blade = itemFamilyFactory({name: 'blade', code: 'SLASH', color: colors.steel});
 var itemFamily_Firearm = itemFamilyFactory({name: 'firearm', code: 'GUN_RIGHT', color: colors.hf_orange});
 var itemFamily_Flask = itemFamilyFactory({name: 'flask', code: 'BANG', color: colors.pink});
+var itemFamily_Booty = itemFamilyFactory({name: 'booty', code: 'DOLLAR', color: colors.yellow});
 
 var terrain_Floor = terrainFactory({name: 'floor', code: 'PERIOD'});
-var terrain_Wall = terrainFactory({name: 'wall', code: 'HASH', is_walkable: false});
+var terrain_Wall = terrainFactory({name: 'wall', code: 'HASH', is_walkable: false, is_opaque: true});
+var terrain_Chasm = terrainFactory({name: 'chasm', code: 'COLON', is_walkable: false});
+
+var monsterFamily_Player = monsterFamilyFactory({name: 'player', code: 'AT', color: colors.hf_blue});
+var monsterFamily_Monkey = monsterFamilyFactory({name: 'monkey', code: 'm', color: colors.maroon});
 
 ////////////////////////////////////////////////////////////
 
-//var createDungeon = function (width, height) {
-    //var x, y;
-    //var dungeon = levelFactory({'width': width, 'height': height});
-
-    //var weapon = itemFamilyFactory({'name': 'weapon', 'code': 'SLASH'});
-    //var sword = itemFactory({'name': 'sword', 'family': weapon});
-    
-    //var crabs = monsterFamilyFactory({'name': 'crabs', 'code': 'C'});
-    //var giant_crab = monsterFactory({name: 'giant crab', family: crabs});
-
-    //for (x = 0; x < dungeon.width; x += 1) {
-        //for (y = 0; y < dungeon.height; y += 1) {
-            //dungeon.setTerrainAt({"x": x, "y": y}, terrain_Floor);
-        //}
-    //};
-    
-    //dungeon.setItemAt({"x": 2, "y": 2}, sword);
-    //dungeon.setMonsterAt({"x": 4, "y": 3}, giant_crab);
-    //return dungeon;
-//};

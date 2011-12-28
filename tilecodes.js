@@ -101,6 +101,10 @@ var getTileCodes = function ( ) {
 		POUND: 124,
 		CENTS: 123,
 		GUN_RIGHT: 137,
-		GUN_LEFT: 138
+		GUN_LEFT: 138,
+		BLOCK_FADE1: 144,
+		BLOCK_FADE2: 145,
+		BLOCK_FADE3: 146,
+		BLOCK_FULL: 187
 	};
 };
