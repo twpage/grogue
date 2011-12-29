@@ -401,7 +401,18 @@ var levelFactory = function (spec) {
         
         delete my.monsters[key];
         return true;
-   };
+    };
+    
+    that.getMonsters = function ( ) {
+        var m, monsters = [];
+        for (m in my.monsters) {
+            if (my.monsters.hasOwnProperty(m)) {
+                monsters.push(my.monsters[m]);
+            }
+        }
+        
+        return monsters;
+    };
     
     that.isValidCoordinate = function (grid_xy) {
         if (grid_xy === undefined) {

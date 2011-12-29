@@ -285,6 +285,8 @@ var grogue = function ($, tilecodes, level_gen) {
 		drawMapAt(keyXY(fov_updates[i]));
 	  }
 	}
+	
+	doMonsterTurns();
   };
   
   var doPlayerBump = function (mob) {
@@ -318,11 +320,11 @@ var grogue = function ($, tilecodes, level_gen) {
 	
 	u = Math.random();
 	if (u < 0.334) {
-	  text = 'Avast!!';
+	  text = 'Avast!!!!!!!';
 	} else if (u < 0.667) {
-	  text = 'Arrrr!';
+	  text = 'Arrrr!!!!!!!';
 	} else {
-	  text = 'Yarrr';
+	  text = 'Yarrr.......';
 	}
 	
 	// create a speech bubble element
@@ -331,11 +333,10 @@ var grogue = function ($, tilecodes, level_gen) {
 	// position over the speaker
 	player_xy = my_player.getLocation();
 	bubble[0].style.position = "absolute";
-	bubble[0].style.top = ((player_xy.y - my_screen.y) * constants.tile_dst_height) + 'px';
-	bubble[0].style.left = ((player_xy.x - my_screen.x) * constants.tile_dst_width) + 'px';
+	bubble[0].style.top = (((player_xy.y - my_screen.y) * constants.tile_dst_height) - 15) + 'px';
+	bubble[0].style.left = (((player_xy.x - my_screen.x) * constants.tile_dst_width) - 40) + 'px';
 	$('#id_div_container').append(bubble[0]);
-	//$(bubble[0]).slideUp(3000);	
-	$(bubble[0]).fadeOut(3000)
+	$(bubble[0]).fadeOut(2000)
 	
   };
   
@@ -492,6 +493,60 @@ var grogue = function ($, tilecodes, level_gen) {
     drawInventory();
   };
   
+  ////////////////////////////////////////////////////////////////////////////////  
+  // GAME AI
+  ////////////////////////////////////////////////////////////////////////////////
+  
+  var doMonsterTurns = function ( ) {
+	var i, monsters = my_dungeon.getMonsters();
+	
+	for (i = 0; i < monsters.length; i += 1) {
+	  doMonsterTurn(monsters[i]);
+	} 
+  };
+  
+  var doMonsterTurn = function (mob) {
+	var x, y, success, potential_xy, mob_xy = mob.getLocation(), player_xy = my_player.getLocation();
+	
+	x = (player_xy.x - mob_xy.x);
+	x = (x === 0) ? 0 : x / Math.abs(x);
+	y = (player_xy.y - mob_xy.y);
+	y = (y === 0) ? 0 : y / Math.abs(y);
+	
+	potential_xy = {"x": mob_xy.x + x, "y": mob_xy.y + y};
+	success = canMonsterMove(mob, potential_xy);
+	
+	if (success === true) {
+	  my_dungeon.removeMonsterAt(mob_xy);
+	  my_dungeon.setMonsterAt(potential_xy, mob);
+	  drawMapAt(mob_xy);
+	  drawMapAt(potential_xy);
+	}
+  };
+  
+  var canMonsterMove = function (mob, potential_xy) {
+	var terrain, other_mob;
+	
+	if (my_dungeon.isValidCoordinate(potential_xy) === false) {
+	  return false;
+	}
+	
+	terrain = my_dungeon.getTerrainAt(potential_xy);
+	if (terrain === null) {
+	  alert("vas is dast");
+	}
+	if (terrain.isWalkable() === false) {
+	  return false;
+	}
+	
+	other_mob = my_dungeon.getMonsterAt(potential_xy);
+	if (other_mob !== null) {
+	  return false;
+	}
+	
+	return true;
+  };
+
   ////////////////////////////////////////////////////////////////////////////////  
   // GAME INIT
   ////////////////////////////////////////////////////////////////////////////////
