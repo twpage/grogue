@@ -1,7 +1,9 @@
 <html>
   <head>
 	<title>going rogue</title>
+	<!--<link rel="stylesheet" href="static/css/reset.css">-->
 	<link rel="stylesheet" href="static/css/grogue.css">
+	<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Brawler">
 	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 	<script type="text/javascript" src="static/scripts/gridmangler.js"></script>
 	<script type="text/javascript" src="static/scripts/eyeofthetiler.js"></script>
@@ -51,7 +53,7 @@
   );
 
   $(imageFiles).preloadImages(initGame);
-});
+  });
 
   var initGame = function ( ) {
 	var tilecodes = getTileCodes();
@@ -62,27 +64,41 @@
 </head>
 
   <body>
-	<h1>welcome to my underground lair</h1>
+	<h1 class="game_header">welcome to my underground lair</h1>
 	<div id="id_div_container">
 	  <table>
 		<tr>
 		  <td>
-			<canvas id="id_cnv_game" width="360" height="416" style="border-style: solid; border-color: black;">
+			<canvas id="id_cnv_game" width="360" height="416" >
 			  arg!
 			</canvas>
 		  </td>
 		  <td>
-			<table>
+			<table padding="0px">
 			  <tr>
 				<td>
-				  <canvas id="id_cnv_equip" width="48" height="32" style="border-style: solid; border-color: black;">
+				  <canvas id="id_cnv_playerinfo" width="192" height="160" >
+					hey
+				  </canvas>
+				</td>
+			  </tr>
+			  <tr>
+				<td>
+				  <canvas id="id_cnv_equip" width="192" height="96" >
 					arg!
 				  </canvas>
 				</td>
 			  </tr>
 			  <tr>
 				<td>
-				  <canvas id="id_cnv_inventory" width="120" height="64" style="border-style: solid; border-color: black;">
+				  <canvas id="id_cnv_inventory" width="192" height="64" >
+					arg!
+				  </canvas>
+				</td>
+			  </tr>
+			  <tr>
+				<td>
+				  <canvas id="id_cnv_monsterinfo" width="192" height="90" >
 					arg!
 				  </canvas>
 				</td>

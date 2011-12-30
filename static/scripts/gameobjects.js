@@ -109,12 +109,8 @@ var itemFamilyFactory = function (spec) {
         my.color = spec.color;
     }
 
-    if (spec.bg_color === undefined) {
-        my.bg_color = colors.normal_bg;
-    } else {
-        my.bg_color = spec.bg_color;
-    }
-    
+    my.is_container = spec.is_container || false;
+
     // that public
     var that = {};
     that.id = idGenerator.new_id();
@@ -152,6 +148,8 @@ var itemFactory = function (spec) {
     } else {
         my.code = spec.code;
     }
+    my.is_container = my.family.is_container;
+    my.inventory = [];
     
     // that public
     var that = {};
@@ -162,7 +160,26 @@ var itemFactory = function (spec) {
     that.getCode = function ( ) { return my.code; };
     that.getColor = function ( ) { return my.color; };
     that.getBackgroundColor = function ( ) { return my.bg_color; };
+    that.isContainer = function ( ) { return my.is_container; };
 
+    // INVENTORY
+    //////////////////////////////////////////////////
+    that.inventoryAdd = function (item) {
+        if (my.inventory.length === constants.inventory_max_items) {
+            return false;
+        }
+        my.inventory.push(item);
+        return true;
+    };
+    
+    that.inventoryRemove = function (index) {
+        my.inventory.splice(index, 1);
+    };
+    
+    that.inventoryGet = function ( ) {
+        return my.inventory;
+    };
+    
     return that;
 };
 
@@ -228,6 +245,9 @@ var monsterFactory = function (spec) {
     that.objtype = 'monster';
     that.id = idGenerator.new_id();
     that.health = 10;
+    that.max_health = 10;
+    that.drunk = 100;
+    that.max_drunk = 200;
     
     that.getName = function ( ) { return my.name; };
     that.getFamily = function ( ) { return my.family; };
@@ -285,6 +305,11 @@ var monsterFactory = function (spec) {
             // replace the old one back to inventory
             my.inventory[inv_result.index] = current;
         }
+    };
+    
+    that.equipRemove = function (equip_slot) {
+        delete my.equip[equip_slot];
+        return true;
     };
     
     // F. O. V.
@@ -536,13 +561,13 @@ var itemFamily_Blade = itemFamilyFactory({name: 'blade', code: 'SLASH', color: c
 var itemFamily_Firearm = itemFamilyFactory({name: 'firearm', code: 'GUN_RIGHT', color: colors.hf_orange});
 var itemFamily_Flask = itemFamilyFactory({name: 'flask', code: 'BANG', color: colors.pink});
 var itemFamily_Booty = itemFamilyFactory({name: 'booty', code: 'DOLLAR', color: colors.yellow});
+var itemFamily_Chest = itemFamilyFactory({name: 'container', code: 'OPEN_PAREN', color: colors.yellow, is_container: true});
 
 var terrain_Floor = terrainFactory({name: 'floor', code: 'PERIOD'});
 var terrain_Wall = terrainFactory({name: 'wall', code: 'HASH', is_walkable: false, is_opaque: true});
 var terrain_Chasm = terrainFactory({name: 'chasm', code: 'COLON', is_walkable: false});
 
-var feature_Blood = featureFactory({name: 'blood', color: colors.blood}); //code: 'APPROX', 
-//var feature_PoolOfBlood = featureFactory({name: 'blood', bg_color: colors.red}); //code: 'APPROX', 
+var feature_Blood = featureFactory({name: 'blood', bg_color: colors.blood}); //code: 'APPROX', 
 var feature_PoolOfBlood = featureFactory({name: 'blood', code: 'BLOOD_0', color: colors.blood}); //code: 'APPROX', 
 
 var monsterFamily_Player = monsterFamilyFactory({name: 'player', code: 'AT', color: colors.hf_blue});

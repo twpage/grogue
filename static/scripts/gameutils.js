@@ -68,16 +68,22 @@ var constants = {
   game_tiles_width: 15,
   game_tiles_height: 13,
   
-  inventory_tiles_width: 5,
+  inventory_tiles_width: 8,
   inventory_tiles_height: 2,
-  inventory_max_items: 10,
+  inventory_max_items: 16,
   
   equip: {
     blade: 'blade0',
     firearm: 'gun1',
     body: 'body2',
-    thrown: 'thrown3'
-  }
+    ready_item: 'thrown3'
+  },
+  
+  playerinfo_width: 192,
+  playerinfo_height: 192,
+  
+  equip_width: 192,
+  equip_height: 96
 
 };
 
@@ -95,5 +101,6 @@ var colors = {
   yellow: 'rgb(255, 255, 0)',
   memory: 'rgb(88, 88, 88)',
   transparent: 'transparency',
-  blood: 'rgb(165, 0, 0)'
+  blood: 'rgb(165, 0, 0)',
+  grey: 'rgb(125, 125, 125)'
 };

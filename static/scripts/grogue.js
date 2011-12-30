@@ -1,7 +1,7 @@
 var grogue = function ($, tilecodes, level_gen) {
   var that = {};
   // canvas + contexts
-  var ctx_game, cnv_copy, ctx_copy, ctx_inventory, ctx_equip;
+  var ctx_game, cnv_copy, ctx_copy, ctx_inventory, ctx_equip, ctx_playerinfo;
   
   // gridmanglers
   var my_grid, my_inv_grid, my_equip_grid;
@@ -137,25 +137,88 @@ var grogue = function ($, tilecodes, level_gen) {
 	}
   };
   
+  var drawPlayerInfo = function ( ) {
+  // player name, health, drunkenness, etc!
+  
+	ctx_playerinfo.fillStyle = colors.normal_bg;
+	ctx_playerinfo.fillRect(0, 0, constants.playerinfo_width, constants.playerinfo_height);
+	
+	// player name + class
+	ctx_playerinfo.font = '20px Verdana';	
+	ctx_playerinfo.textBaseline = 'top';
+	ctx_playerinfo.fillStyle = colors.white;
+	
+	ctx_playerinfo.fillText(my_player.getName(), 0, 0, constants.playerinfo_width);
+	ctx_playerinfo.font = '14px Verdana';	
+	ctx_playerinfo.fillText("Level 1 Deck-swabber", 0, 20, constants.playerinfo_width);
+	
+	// Health
+	drawHealthBar(ctx_playerinfo, 0, 40, constants.playerinfo_width - 2, 20, colors.hf_blue, colors.grey, my_player.health, my_player.max_health);
+	ctx_playerinfo.strokeStyle = colors.white;
+	ctx_playerinfo.strokeRect(0, 40, constants.playerinfo_width - 2, 20);
+	ctx_playerinfo.fillStyle = colors.white;	
+	ctx_playerinfo.fillText("Health: " + my_player.health, 2, 40, constants.playerinfo_width - 2);
+
+	drawHealthBar(ctx_playerinfo, 0, 62, constants.playerinfo_width - 2, 20, colors.hf_blue, colors.grey, my_player.drunk, my_player.max_drunk);
+	ctx_playerinfo.strokeStyle = colors.white;
+	ctx_playerinfo.strokeRect(0, 62, constants.playerinfo_width - 2, 20);
+	ctx_playerinfo.fillStyle = colors.white;	
+	ctx_playerinfo.fillText("Drunkenness: " + my_player.drunk, 2, 62, constants.playerinfo_width - 2);
+  };
+  
+  var drawHealthBar = function (context, x, y, max_width, height, color_full, color_empty, health, max_health) {
+  
+	var width;
+	
+	// draw blank rectangle
+	
+	context.fillStyle = color_empty;
+	context.fillRect(x, y, max_width, height);
+	
+	// figure out how healthy we are
+	width = Math.round((health / max_health) * max_width, 0);
+	context.fillStyle = color_full;
+	context.fillRect(x, y, width, height);
+  };
+  
   var drawEquipment = function ( ) {
   // update the equip canvas / box on screen
   
-	var blade, firearm, i;
+	var ready_item, blade, firearm, i, x, y, w, h, things, names;
 	
+	// clear existing frame
+	ctx_equip.fillStyle = colors.normal_bg;
+	ctx_equip.fillRect(0, 0, constants.equip_width, constants.equip_height);
+	
+	// see what we have equipped
 	blade = my_player.equipGet(constants.equip.blade);
 	firearm = my_player.equipGet(constants.equip.firearm);
+	ready_item = my_player.equipGet(constants.equip.ready_item);
 	
-	if (blade !== null) {
-	  drawTileOn(ctx_equip, my_tile_codes[blade.getCode()], 0, 0, constants.tile_dst_width, constants.tile_dst_height, blade.getColor(), colors.normal_bg);
-	} else {
-	  drawTileOn(ctx_equip, my_tile_codes['SPACE'], 0, 0, constants.tile_dst_width, constants.tile_dst_height, colors.normal_fore, colors.normal_bg);
-	}
+	things = [blade, firearm, ready_item];
+	names = ['Blade (bump-attack)', 'Pistol (click)', 'Throw (shift-click, Q to Use)'];
 	
-	if (firearm !== null) {
-	  drawTileOn(ctx_equip, my_tile_codes[firearm.getCode()], constants.tile_dst_width, 0, constants.tile_dst_width, constants.tile_dst_height, firearm.getColor(), colors.normal_bg);
-	} else {
-	  drawTileOn(ctx_equip, my_tile_codes['SPACE'], constants.tile_dst_width, 0, constants.tile_dst_width, constants.tile_dst_height, colors.normal_fore, colors.normal_bg);
+	ctx_equip.textBaseline = 'middle';
+	ctx_equip.font = '10px Verdana';
+	w = constants.tile_dst_width - 3;
+	h = constants.tile_dst_height - 3;
+	
+	for (i = 0; i < things.length; i += 1) {
+	  x = 2;
+	  y = (h * i) + (i * 2) + 2;
+	  
+	  ctx_equip.strokeStyle = colors.white;
+	  ctx_equip.strokeRect(x, y, w, h);
+	  if (things[i] !== null) {
+		drawTileOn(ctx_equip, my_tile_codes[things[i].getCode()], x, y, w, h, things[i].getColor(), colors.normal_bg);
+	  } else {
+		drawTileOn(ctx_equip, my_tile_codes['SPACE'], x, y, w, h, colors.normal_fore, colors.normal_bg);
+	  }
+	  
+	  ctx_equip.fillStyle = colors.white;
+	  ctx_equip.fillText(names[i], x + 25, y + 16, constants.equip_width - x - 25);
 	}
+
   };
   
   drawTileOn = function (context, tile_code, x, y, width, height, fore_color, bg_color, clear_first) {
@@ -327,6 +390,29 @@ var grogue = function ($, tilecodes, level_gen) {
 	doMobDamage(mob, 2);
   };
   
+  var calcShotAccuracy = function (fire_xy, target_xy) {
+	var prob, dist2d, xdiff, ydiff;
+	var max_range, min_range, min_prob, max_prob;
+	
+	xdiff = target_xy.x - fire_xy.x;
+	ydiff = target_xy.y - fire_xy.y;
+	
+	dist2d = Math.sqrt(xdiff*xdiff + ydiff*ydiff);
+	max_range = 5;
+	min_range = 1;
+	min_prob = 50;
+	max_prob = 100;
+	
+	if (dist2d > 5) {
+	  prob = 0;
+	} else {
+	  prob = min_prob + ((dist2d - max_range)*max_prob - (dist2d - max_range)*min_prob) / (min_range - max_range);
+	}
+	
+	return prob / 100;
+	
+  };
+  
   var doPlayerShoot = function (mob) {
 	//alert("BANG!");
 	var gun = my_player.equipGet(constants.equip.firearm);
@@ -337,53 +423,59 @@ var grogue = function ($, tilecodes, level_gen) {
 	  return;
 	}
 	//todo: check if gun is loaded
+	var prob = calcShotAccuracy(my_player.getLocation(), mob.getLocation());
 	
-	my_audio.src = my_sounds['bang_' + Math.floor(Math.random()*5)];
-	my_audio.play();
-	
-	// trigonometries!
-	player_xy = my_player.getLocation();
-	mob_xy = mob.getLocation(0);
-	opp = mob_xy.y - player_xy.y;
-	adj = mob_xy.x - player_xy.x;
-	hyp = Math.sqrt(opp*opp + adj*adj);
-	theta = Math.asin(opp/hyp);
-	
-	// check terrain behind
-	hyp = Math.ceil(hyp) + 2;
-	opp = Math.ceil(Math.sin(theta) * hyp);
-	adj = Math.ceil(Math.cos(theta) * hyp);
-	
-	if (player_xy.x > mob_xy.x) { 
-	  adj = adj * -1; 
-	}
-	
-	if (player_xy.x === mob_xy.x) {
-	  new_x = player_xy.x;
-	} else {
-	  new_x = player_xy.x + adj;
-	}
-	
-	if (player_xy.y === mob_xy.y) {
-	  new_y = player_xy.y;
-	} else {
-	  new_y = player_xy.y + opp;
-	}
-	
-	new_xy = {"x": new_x, "y": new_y};
-	points = getLineBetweenPoints(mob_xy, new_xy);
-	
-	for (i = 0; i < points.length; i += 1) {
-	  impact_xy = points[i];
-	  terrain = my_dungeon.getTerrainAt(impact_xy);
-	  if (terrain.isWalkable() === false) {
-		my_dungeon.setFeatureAt(impact_xy, feature_Blood);
-		drawMapAt(impact_xy);
-		break;
+	if (Math.random() < prob) {
+	  my_audio.src = my_sounds['bang_' + Math.floor(Math.random()*5)];
+	  my_audio.play();
+	  
+	  // trigonometries!
+	  player_xy = my_player.getLocation();
+	  mob_xy = mob.getLocation(0);
+	  opp = mob_xy.y - player_xy.y;
+	  adj = mob_xy.x - player_xy.x;
+	  hyp = Math.sqrt(opp*opp + adj*adj);
+	  theta = Math.asin(opp/hyp);
+	  
+	  // check terrain behind
+	  hyp = Math.ceil(hyp) + 2;
+	  opp = Math.ceil(Math.sin(theta) * hyp);
+	  adj = Math.ceil(Math.cos(theta) * hyp);
+	  
+	  if (player_xy.x > mob_xy.x) { 
+		adj = adj * -1; 
 	  }
+	  
+	  if (player_xy.x === mob_xy.x) {
+		new_x = player_xy.x;
+	  } else {
+		new_x = player_xy.x + adj;
+	  }
+	  
+	  if (player_xy.y === mob_xy.y) {
+		new_y = player_xy.y;
+	  } else {
+		new_y = player_xy.y + opp;
+	  }
+	  
+	  new_xy = {"x": new_x, "y": new_y};
+	  points = getLineBetweenPoints(mob_xy, new_xy);
+	  
+	  for (i = 0; i < points.length; i += 1) {
+		impact_xy = points[i];
+		terrain = my_dungeon.getTerrainAt(impact_xy);
+		if (terrain.isWalkable() === false) {
+		  my_dungeon.setFeatureAt(impact_xy, feature_Blood);
+		  drawMapAt(impact_xy);
+		  break;
+		}
+	  }
+  
+	  doMobDamage(mob, 5);
+	} else {
+	  my_audio.src = my_sounds['miss_' + Math.floor(Math.random()*4)];
+	  my_audio.play();
 	}
-
-	doMobDamage(mob, 5);
   };
   
   var doMobDamage = function (mob, damage) {
@@ -412,7 +504,11 @@ var grogue = function ($, tilecodes, level_gen) {
 	
 	// assume picking up item if one is on the floor
 	if (item !== null) {
-	  doPlayerPickupItem(item);
+	  if (item.isContainer() === true) {
+		doPlayerOpenContainer(item);
+	  } else {
+		doPlayerPickupItem(item);
+	  }
 	} else {
 	  doPlayerYell();
 	}
@@ -478,50 +574,67 @@ var grogue = function ($, tilecodes, level_gen) {
 	}
   
   };
+  var doPlayerActivateReadyItem = function ( ) {
+	var ready_item = my_player.equipGet(constants.equip.ready_item);
+	
+	if (ready_item !== null) {
+	  doPlayerActivateItem(ready_item, null, constants.equip.ready_item);
+	} else {
+	  alert("no item readied");
+	}
+  };
   
-  var doPlayerDropItem = function (inv_result) {
-  // drop item onto the player's current location
+  var doPlayerActivateItem = function (item, inv_index, equip_slot) {
+	var used_up = false;
 	
-	var item, player_xy;
-	
-	// see where the player is
-	player_xy = my_player.getLocation();
-	
-	// is something there already?
-	item = my_dungeon.getItemAt(player_xy);
-	
-	if (item == null) {
-	  my_dungeon.setItemAt(player_xy, inv_result.item);
-	  my_player.inventoryRemove(inv_result.index);
-	  drawMapAt(player_xy);
-	  drawInventory();
-	  return true;
+	if (compareItemToFamily(item, itemFamily_Flask) === true) {
+	  used_up = doPlayerActionDrink(item);
 	  
 	} else {
-	  return false;
+	  alert("I don't know what to do with that");
+	}
+	
+	if (used_up) {
+	  if (inv_index !== null) {
+		my_player.inventoryRemove(inv_index);
+		drawInventory();
+	  } else {
+		my_player.equipRemove(equip_slot);
+		drawEquipment();
+	  }
 	}
   };
   
-  var doPlayerUseItem = function (inv_result) {
-  // use/activate/equip an item from inventory
+  var doPlayerActionDrink = function (ye_flask) {
 	
-	var equip_slot, item = inv_result.item;
+	my_player.drunk += 20;
+	drawPlayerInfo();
 	
-	if (compareItemToFamily(item, itemFamily_Blade) === true) {
-	  equip_slot = constants.equip.blade;
-	} else if (compareItemToFamily(item, itemFamily_Firearm) === true) {
-	  equip_slot = constants.equip.firearm;
-	} else {
-	  // use in some other way.. throwable slot??
-	  return;
-	}
-	
-	my_player.equipSet(equip_slot, inv_result);
-	
-	drawInventory();
-	drawEquipment();
+	return true;
   };
 
+  var doPlayerThrow = function (target_xy) {
+	var thrown_item;
+	
+	thrown_item = my_player.equipGet(constants.equip.ready_item);
+	
+	if (thrown_item === null) {
+	  alert("nothing ready to throw");
+	  return false;
+	} else {
+	
+	  my_player.equipRemove(constants.equip.ready_item);
+	  // todo: if item already exists, move to a nearby square
+	  my_dungeon.setItemAt(target_xy, thrown_item);
+	  drawMapAt(target_xy);
+	  drawEquipment();
+	  return true;
+	}
+  };
+  
+  ////////////////////////////////////////////////////////////////////////////////  
+  // INVENTORY
+  ////////////////////////////////////////////////////////////////////////////////
   var getInventoryItemFromCoords = function (grid_xy) {
   // returns the inventory item and array index
   
@@ -538,19 +651,111 @@ var grogue = function ($, tilecodes, level_gen) {
 	return {"item": item, "index": i};
   };
   
+  var doInventoryClick = function (inv_result) {
+  // click: equip or ready an item
+	
+	var equip_slot, item = inv_result.item;
+	
+	if (compareItemToFamily(item, itemFamily_Blade) === true) {
+	  equip_slot = constants.equip.blade;
+	  doPlayerEquipItem(equip_slot, inv_result);
+	  
+	} else if (compareItemToFamily(item, itemFamily_Firearm) === true) {
+	  equip_slot = constants.equip.firearm;
+	  doPlayerEquipItem(equip_slot, inv_result);
+	  
+	} else if (compareItemToFamily(item, itemFamily_Flask) === true) {
+	  equip_slot = constants.equip.ready_item;
+	  doPlayerEquipItem(equip_slot, inv_result);
+	  
+	} else {
+	  alert("i don't know how to ready that item");
+	}
+  };
+  
+  var doInventoryShiftClick = function (inv_result) {
+  // shift-click an item from inventory: drop
+	doPlayerDropItem(inv_result);
+  };
+  
+  var doInventoryRightClick = function (inv_result) {
+  // right/mid-click an item from inventory: consume right away!
+	doPlayerActivateItem(inv_result.item, inv_result.index, null);
+  };
+  
+  var doPlayerEquipItem = function (equip_slot, inv_result) {
+  // move an item from inventory to equip-status
+  
+	my_player.equipSet(equip_slot, inv_result);
+	drawInventory();
+	drawEquipment();  
+  };
+
+  var doPlayerDropItem = function (inv_result) {
+  // drop item onto the player's current location
+	
+	var item, player_xy;
+	
+	// see where the player is
+	player_xy = my_player.getLocation();
+	
+	// is something there already?
+	item = my_dungeon.getItemAt(player_xy);
+	
+	if (item === null) {
+	  my_dungeon.setItemAt(player_xy, inv_result.item);
+	  my_player.inventoryRemove(inv_result.index);
+	  drawMapAt(player_xy);
+	  drawInventory();
+	  return true;
+	  
+	} else {
+	  alert("there's something here already");
+	  return false;
+	}
+  };
+  
+  ////////////////////////////////////////////////////////////////////////////////  
+  // GAME CLICK EVENTS
+  ////////////////////////////////////////////////////////////////////////////////
+  var doGameClick = function (grid_xy) {
+  // click on the game: shoot something!!
+  
+	var map_xy = {"x": grid_xy.x + my_screen.x, "y": grid_xy.y + my_screen.y};  
+	var is_player = compareCoords(map_xy, my_player.getLocation());
+	var mob = my_dungeon.getMonsterAt(map_xy);
+	var can_see = my_player.getFovAt(map_xy) === true;
+	
+	if (can_see && (mob !== null) && (!is_player)) {
+	  doPlayerShoot(mob);
+	}
+  };
+
+  var doGameShiftClick = function (grid_xy) {
+  // shift-click on the game screen: throw something!!
+	var map_xy = {"x": grid_xy.x + my_screen.x, "y": grid_xy.y + my_screen.y}; 
+	var can_see = my_player.getFovAt(map_xy) === true;	
+	return doPlayerThrow(map_xy);
+  };
+
+  var doGameRightClick = function (grid_xy) {
+  // right-click on the game screen: nothing yet
+	var map_xy = {"x": grid_xy.x + my_screen.x, "y": grid_xy.y + my_screen.y};  
+  };
+  
   ////////////////////////////////////////////////////////////////////////////////  
   // MOUSE EVENTS
   ////////////////////////////////////////////////////////////////////////////////
-  var doEventMousedown = function (grid_xy) {
+  var doEventMousedown = function (grid_xy, button, shiftKey) {
     //$('#id_div_click').html('<p>clicked on grid tile (' + grid_xy.x + ', ' + grid_xy.y + ')</p>');
-	var map_xy = {"x": grid_xy.x + my_screen.x, "y": grid_xy.y + my_screen.y};
-	var mob = my_dungeon.getMonsterAt(map_xy);
-	var is_player = compareCoords(map_xy, my_player.getLocation());
 	
-	if ((mob !== null) && (!is_player)) {
-	  doPlayerShoot(mob);
+	if (shiftKey === true) {
+	  doGameShiftClick(grid_xy);
+	} else if (button !== 0) {
+	  doGameRightClick(grid_xy);
+	} else {
+	  doGameClick(grid_xy);
 	}
-	
   };
   
   var doEventGainFocus = function (grid_xy) {
@@ -581,18 +786,22 @@ var grogue = function ($, tilecodes, level_gen) {
     drawGridAt(grid_xy);	
   };
   
-  var doInventoryEventMousedown = function (grid_xy, shiftKey) {
+  var doInventoryEventMousedown = function (grid_xy, button, shiftKey) {
     
 	// figure out what inventory item we just clicked on
 	var inv_result = getInventoryItemFromCoords(grid_xy);
-	
+
 	if (inv_result.item !== null) {
 	  if (shiftKey === true) {
 		// drop
-		return doPlayerDropItem(inv_result);
+		return doInventoryShiftClick(inv_result);
+		
+	  } else if (button !== 0) {
+		return doInventoryRightClick(inv_result);
+		
 	  } else {
 		// equip
-		return doPlayerUseItem(inv_result);
+		return doInventoryClick(inv_result);
 	  }
 	}
 	
@@ -600,7 +809,7 @@ var grogue = function ($, tilecodes, level_gen) {
   };
   
   var doInventoryEventGainFocus = function (grid_xy) {
-    my_inv_grid.drawBorderAt(grid_xy, "rgba(255, 255, 255, 1.0)");
+    my_inv_grid.drawBorderAt(grid_xy, colors.white);
   };
   
   var doInventoryEventLeaveFocus = function (grid_xy) {
@@ -675,9 +884,7 @@ var grogue = function ($, tilecodes, level_gen) {
   initGame = function ( ) {
     var result, i, u, locations, item, mob, booty;
     
-    //my_level_generator = level_generator();
     my_player = monsterFactory({name: 'Hero', family: monsterFamily_Player});
-    //result = my_level_generator.createRandomCaveLevel(constants.game_tiles_width, constants.game_tiles_height);
 	result = my_level_generator.createRandomCaveLevel(constants.game_tiles_width * 2, constants.game_tiles_height * 2);
     my_dungeon = result.level;
     my_dungeon.setMonsterAt(result.start_xy, my_player);
@@ -688,16 +895,19 @@ var grogue = function ($, tilecodes, level_gen) {
 	// add items
 	for (i = 0; i < 20; i += 1) {
 	  u = Math.random();
-	  if (u < 0.33) {
+	  if (u < 0.25) {
 		item = itemFactory({name: 'sword', family: itemFamily_Blade});
-	  } else if (u < 0.66) {
+	  } else if (u < 0.50) {
 		item = itemFactory({name: 'pistol', family: itemFamily_Firearm});
+	  } else if (u < 0.75) {
+		item = itemFactory({name: 'grog', family: itemFamily_Flask});
 	  } else {
 		item = itemFactory({name: 'grog', family: itemFamily_Flask});
 	  }
 	  my_dungeon.setItemAt(locations[i], item);
 	}
-	my_dungeon.setItemAt(result.start_xy, itemFactory({name: 'black pistol', family: itemFamily_Firearm}));
+	//my_dungeon.setItemAt(result.start_xy, itemFactory({name: 'black pistol', family: itemFamily_Firearm}));
+	my_dungeon.setItemAt(result.start_xy, itemFactory({name: 'treasure chest', family: itemFamily_Chest}));
 	
 	// add THE MONKIES
 	for (; i < 25; i += 1) {
@@ -722,6 +932,7 @@ var grogue = function ($, tilecodes, level_gen) {
     initSounds();
     drawEquipment();
     drawInventory();
+	drawPlayerInfo();
     updateFov(my_player);
     drawGame();
   };
@@ -744,6 +955,11 @@ var grogue = function ($, tilecodes, level_gen) {
 	my_sounds['booty_2'] = 'static/audio/booty_2.wav';
 	my_sounds['booty_3'] = 'static/audio/booty_3.wav';
 	
+	my_sounds['miss_0'] = 'static/audio/miss_0.wav';
+	my_sounds['miss_1'] = 'static/audio/miss_1.wav';
+	my_sounds['miss_2'] = 'static/audio/miss_2.wav';
+	my_sounds['miss_3'] = 'static/audio/miss_3.wav';
+
   };
   
   ////////////////////////////////////////////////////////////////////////////////  
@@ -786,6 +1002,12 @@ var grogue = function ($, tilecodes, level_gen) {
 	ctx_equip = cnv_equip.getContext("2d");
 	my_equip_grid = gridmangler(cnv_equip, constants.tile_dst_width, constants.tile_dst_height);
 	
+	// player info
+	var cnv_playerinfo = $('#id_cnv_playerinfo').get()[0];
+	ctx_playerinfo = cnv_playerinfo.getContext("2d");
+	ctx_playerinfo.fillStyle = colors.normal_bg;
+	ctx_playerinfo.fillRect(0, 0, cnv_playerinfo.width, cnv_playerinfo.height);
+	
     initGame();
   };
 
@@ -820,7 +1042,11 @@ var grogue = function ($, tilecodes, level_gen) {
 	} else if (e.keyCode === 70) {
 	  // f
 	  doPlayerInvisibleDebug();
+	} else if (e.keyCode === 81) {
+	  // q
+	  doPlayerActivateReadyItem();
 	}
+	  
   };
 
   return that;

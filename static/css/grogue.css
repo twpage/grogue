@@ -1,3 +1,33 @@
+ * {
+    margin: 0; 
+    padding: 0;
+}
+
+body, table, td, div, p, span, ul, li, h1, h2, h3, h4 {
+    font-family: "Brawler", "Verdana", sans-serif;
+    background: transparent;
+	color: white;
+}
+
+table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+
+canvas {
+	border-style: solid;
+	border-width: 1px;
+	border-color: white;
+}
+
+body {
+	background: rgb(50, 50, 50);
+	user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+}
+
+
 /* ============================================================================================================================
 == BUBBLE WITH A BORDER AND TRIANGLE
 ** ============================================================================================================================ */
