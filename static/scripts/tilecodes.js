@@ -1,5 +1,6 @@
 var getTileCodes = function ( ) {
 	return {
+		NONE: -1,
 		SPACE: 0,
 		BANG: 1,
 		QUOTE: 2,
@@ -105,6 +106,16 @@ var getTileCodes = function ( ) {
 		BLOCK_FADE1: 144,
 		BLOCK_FADE2: 145,
 		BLOCK_FADE3: 146,
-		BLOCK_FULL: 187
+		BLOCK_FULL: 187,
+		APPROX: 215,
+		DEGREE: 216,
+		INTERPUNCT: 217,
+		INTERPOINT: 218,
+		BLOOD_0: 224,
+		BLOOD_1: 225,
+		BLOOD_2: 226,
+		BLOOD_3: 227,
+		BLOOD_4: 228,
+		BLOOD_5: 229
 	};
 };

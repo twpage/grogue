@@ -1,3 +1,18 @@
+var idGenerator = (function ( ) {
+    var counter = Math.floor(Math.random() * 1000000);
+    
+    return {
+        new_id: function ( ) {
+            counter += 1;
+            return counter;
+        }
+    }
+})();
+
+var getId = function ( ) {
+
+};
+
 var compareCoords = function (grid1_xy, grid2_xy) {
     return grid1_xy.x === grid2_xy.x && grid1_xy.y === grid2_xy.y;
 };
@@ -47,10 +62,33 @@ var terrainFactory = function (spec) {
     
     // that public
     var that = {};
+    that.id = idGenerator.new_id();
     that.objtype = 'terrain';
     that.getName = function ( ) { return my.name; };
     that.isWalkable = function ( ) { return my.is_walkable; };
     that.isOpaque = function ( ) { return my.is_opaque; };
+    that.getCode = function ( ) { return my.code; };
+    that.getColor = function ( ) { return my.color; };
+    that.getBackgroundColor = function ( ) { return my.bg_color; };
+
+    return that;
+};
+
+var featureFactory = function (spec) {
+    // other private instance variables
+    
+    // my private
+    var my = {};
+    my.name = spec.name;
+    my.code = spec.code || 'NONE';
+    my.color = spec.color || colors.transparent;
+    my.bg_color = spec.bg_color || colors.transparent;
+    
+    // that public
+    var that = {};
+    that.id = idGenerator.new_id();
+    that.objtype = 'feature';
+    that.getName = function ( ) { return my.name; };
     that.getCode = function ( ) { return my.code; };
     that.getColor = function ( ) { return my.color; };
     that.getBackgroundColor = function ( ) { return my.bg_color; };
@@ -79,6 +117,7 @@ var itemFamilyFactory = function (spec) {
     
     // that public
     var that = {};
+    that.id = idGenerator.new_id();
     that.objtype = 'item_family';
     that.getName = function ( ) { return my.name; };
     that.getCode = function ( ) { return my.code; };
@@ -116,6 +155,7 @@ var itemFactory = function (spec) {
     
     // that public
     var that = {};
+    that.id = idGenerator.new_id();
     that.objtype = 'item';
     that.getName = function ( ) { return my.name; };
     that.getFamily = function ( ) { return my.family; };
@@ -147,6 +187,7 @@ var monsterFamilyFactory = function (spec) {
     
     // that public
     var that = {};
+    that.id = idGenerator.new_id();
     that.objtype = 'monster_family';
     that.getName = function ( ) { return my.name; };
     that.getCode = function ( ) { return my.code; };
@@ -167,6 +208,7 @@ var monsterFactory = function (spec) {
     my.inventory = [];
     my.equip = {};
     my.fov = {};
+    my.aware = [];
     my.memory = {};
     
     if (spec.color === undefined) {
@@ -184,10 +226,13 @@ var monsterFactory = function (spec) {
     // that public
     var that = {};
     that.objtype = 'monster';
+    that.id = idGenerator.new_id();
+    that.health = 10;
     
     that.getName = function ( ) { return my.name; };
     that.getFamily = function ( ) { return my.family; };
     that.getColor = function ( ) { return my.color; };
+    that.setColor = function (new_color) { my.color = new_color; };
     that.getBackgroundColor = function ( ) { return my.bg_color; };
     that.getCode = function ( ) { return my.family.getCode(); };
     that.getLocation = function ( ) { return my.location; };
@@ -264,9 +309,18 @@ var monsterFactory = function (spec) {
     
     that.clearFov = function ( ) {
         my.fov = {};
+        my.aware = [];
     };
     
     that.getFov = function ( ) { return my.fov; };
+    
+    that.addAware = function (thing) {
+        my.aware.push(thing.id);
+    };
+    
+    that.isAware = function (thing) {
+        return $.inArray(thing.id, my.aware) > -1;
+    };
     
     // MEMORY
     //////////////////////////////////////////////////
@@ -308,9 +362,11 @@ var levelFactory = function (spec) {
     my.terrain = {};
     my.items = {};
     my.monsters = {};
+    my.features = {};
     
     // that public
     var that = {};
+    that.id = idGenerator.new_id();
     that.width = my.width;
     that.height = my.height;
     that.depth = my.depth;
@@ -333,6 +389,28 @@ var levelFactory = function (spec) {
         
         var key = xyKey(grid_xy);
         my.terrain[key] = terrain;
+        
+        return true;
+    };
+    
+    that.getFeatureAt = function (grid_xy) {
+        var key = xyKey(grid_xy);
+        var feat = my.features[key];
+        
+        if (feat === undefined) {
+            return null;
+        } else {
+            return feat;
+        }
+    };
+    
+    that.setFeatureAt = function (grid_xy, feat) {
+        if (that.isValidCoordinate(grid_xy) === false) {
+            return false;
+        }
+        
+        var key = xyKey(grid_xy);
+        my.features[key] = feat;
         
         return true;
     };
@@ -462,6 +540,10 @@ var itemFamily_Booty = itemFamilyFactory({name: 'booty', code: 'DOLLAR', color: 
 var terrain_Floor = terrainFactory({name: 'floor', code: 'PERIOD'});
 var terrain_Wall = terrainFactory({name: 'wall', code: 'HASH', is_walkable: false, is_opaque: true});
 var terrain_Chasm = terrainFactory({name: 'chasm', code: 'COLON', is_walkable: false});
+
+var feature_Blood = featureFactory({name: 'blood', color: colors.blood}); //code: 'APPROX', 
+//var feature_PoolOfBlood = featureFactory({name: 'blood', bg_color: colors.red}); //code: 'APPROX', 
+var feature_PoolOfBlood = featureFactory({name: 'blood', code: 'BLOOD_0', color: colors.blood}); //code: 'APPROX', 
 
 var monsterFamily_Player = monsterFamilyFactory({name: 'player', code: 'AT', color: colors.hf_blue});
 var monsterFamily_Monkey = monsterFamilyFactory({name: 'monkey', code: 'm', color: colors.maroon});

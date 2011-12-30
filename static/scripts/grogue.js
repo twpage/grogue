@@ -42,13 +42,13 @@ var grogue = function ($, tilecodes, level_gen) {
 	return ((my_screen.x !== orig_screen.x) || (my_screen.y !== orig_screen.y));
   };
   
-  var updatePlayerFov = function ( ) {
+  var updateFov = function (mob) {
   // return an array of squares that had their FOV/light value change
   
-	var blocked, visit, player_xy, new_map, previous_map, a, changed = [], now_lit = [], now_unlit = [];
+	var blocked, visit, start_xy, new_map, previous_map, a, changed = [], now_lit = [], now_unlit = [];
 	
-	previous_map = my_player.getFov();
-	my_player.clearFov();
+	previous_map = mob.getFov();
+	mob.clearFov();
   
 	blocked = function (x, y) {
 	  var t = my_dungeon.getTerrainAt({"x": x, "y": y});
@@ -62,14 +62,20 @@ var grogue = function ($, tilecodes, level_gen) {
 	visit = function (x, y) {
 	  var xy = {"x": x, "y": y};
 	  if (my_dungeon.isValidCoordinate(xy) === true) {
-		my_player.setFovAt(xy);
+		mob.setFovAt(xy);
+		var other_mob = my_dungeon.getMonsterAt(xy);
+		if (other_mob !== null && other_mob.is_invisible !== true) {
+		  mob.addAware(other_mob);
+		} //else {
+		  //var item = my_dungeon.getItemAt(xy);
+		
 	  }
 	};
 	
 	// run fov caster
-	player_xy = my_player.getLocation();
-	fieldOfView(player_xy.x, player_xy.y, 10, visit, blocked);
-	new_map = my_player.getFov();
+	start_xy = mob.getLocation();
+	fieldOfView(start_xy.x, start_xy.y, 10, visit, blocked);
+	new_map = mob.getFov();
 	
 	// see what squares are new appearances
 	for (a in new_map) {
@@ -180,7 +186,8 @@ var grogue = function ($, tilecodes, level_gen) {
   };
   
   drawMapAt = function (map_xy) {
-	var terrain, item, mob, fore_color, bg_color, tile_code, grid_x, grid_y, can_see, memory;
+	var terrain, item, feature, mob, fore_color, bg_color, tile_code, grid_x, grid_y, can_see, memory;
+	var feature_bg_color, feature_fore_color, feature_code;
 	
 	grid_xy = {"x": map_xy.x - my_screen.x, "y": map_xy.y - my_screen.y};
 
@@ -192,26 +199,49 @@ var grogue = function ($, tilecodes, level_gen) {
     mob = my_dungeon.getMonsterAt(map_xy);
     terrain = my_dungeon.getTerrainAt(map_xy);
     item = my_dungeon.getItemAt(map_xy);
-    
+    feature = my_dungeon.getFeatureAt(map_xy);
+	
     if (can_see === true) {
+	  // by default, use the terrain background color
 	  bg_color = terrain.getBackgroundColor();
+	  // by default, remember the terrain was here
 	  my_player.setMemoryAt(map_xy, terrain);	  
+	  
+	  // replace terrain background with feature background color if one exists
+	  if (feature !== null) {
+		feature_bg_color = feature.getBackgroundColor();
+		if (feature_bg_color !== colors.transparent) {
+		  bg_color = feature_bg_color;
+		}
+	  }
 	  
 	  if (mob !== null) {
 		fore_color = mob.getColor();
 		//bg_color = mob.getBackgroundColor();
 		tile_code = my_tile_codes[mob.getCode()];
-		//drawTileOn(ctx_game, tile_code, grid_x, grid_y, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, false);	
+
 	  }	else  if (item !== null) {
 		fore_color = item.getColor();
-		//bg_color = item.getBackgroundColor();
 		tile_code = my_tile_codes[item.getCode()];
-		my_player.setMemoryAt(map_xy, item);	  
-		//drawTileOn(ctx_game, tile_code, grid_x, grid_y, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, false);	
+		my_player.setMemoryAt(map_xy, item); // remember items
+
 	  } else {
+		// by default, use the color + code of the terrain
 		fore_color = terrain.getColor();
-		//bg_color = terrain.getBackgroundColor();
 		tile_code = my_tile_codes[terrain.getCode()];
+
+		if (feature !== null) {
+		  feature_fore_color = feature.getColor();
+		  feature_code = feature.getCode();
+		  
+		  if (feature_fore_color !== colors.transparent) {
+			fore_color = feature_fore_color;
+		  }
+		  
+		  if (feature_code !== 'NONE') {
+			tile_code = my_tile_codes[feature_code];
+		  }
+		}
 	  }
 	  
 	  drawTileOn(ctx_game, tile_code, grid_x, grid_y, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
@@ -271,7 +301,7 @@ var grogue = function ($, tilecodes, level_gen) {
 	my_dungeon.setMonsterAt(new_xy, my_player);
 	
 	update_scroll = updateScreenOffset();
-	fov_updates = updatePlayerFov();
+	fov_updates = updateFov(my_player);
 	
 	if (update_scroll === true) {
 	  // scrolled the screen, so we need to redraw everything anyways
@@ -293,12 +323,85 @@ var grogue = function ($, tilecodes, level_gen) {
 	//alert("POW!");
 	my_audio.src = my_sounds['hit_' + Math.floor(Math.random()*5)];
 	my_audio.play();
+	
+	doMobDamage(mob, 2);
   };
   
   var doPlayerShoot = function (mob) {
 	//alert("BANG!");
+	var gun = my_player.equipGet(constants.equip.firearm);
+	var opp, adj, hyp, theta, player_xy, mob_xy, i, new_x, new_y, new_xy, points, impact_xy, terrain;
+	
+	if (gun === null) {
+	  alert("no gun!");
+	  return;
+	}
+	//todo: check if gun is loaded
+	
 	my_audio.src = my_sounds['bang_' + Math.floor(Math.random()*5)];
 	my_audio.play();
+	
+	// trigonometries!
+	player_xy = my_player.getLocation();
+	mob_xy = mob.getLocation(0);
+	opp = mob_xy.y - player_xy.y;
+	adj = mob_xy.x - player_xy.x;
+	hyp = Math.sqrt(opp*opp + adj*adj);
+	theta = Math.asin(opp/hyp);
+	
+	// check terrain behind
+	hyp = Math.ceil(hyp) + 2;
+	opp = Math.ceil(Math.sin(theta) * hyp);
+	adj = Math.ceil(Math.cos(theta) * hyp);
+	
+	if (player_xy.x > mob_xy.x) { 
+	  adj = adj * -1; 
+	}
+	
+	if (player_xy.x === mob_xy.x) {
+	  new_x = player_xy.x;
+	} else {
+	  new_x = player_xy.x + adj;
+	}
+	
+	if (player_xy.y === mob_xy.y) {
+	  new_y = player_xy.y;
+	} else {
+	  new_y = player_xy.y + opp;
+	}
+	
+	new_xy = {"x": new_x, "y": new_y};
+	points = getLineBetweenPoints(mob_xy, new_xy);
+	
+	for (i = 0; i < points.length; i += 1) {
+	  impact_xy = points[i];
+	  terrain = my_dungeon.getTerrainAt(impact_xy);
+	  if (terrain.isWalkable() === false) {
+		my_dungeon.setFeatureAt(impact_xy, feature_Blood);
+		drawMapAt(impact_xy);
+		break;
+	  }
+	}
+
+	doMobDamage(mob, 5);
+  };
+  
+  var doMobDamage = function (mob, damage) {
+	mob.health = mob.health - damage;
+	if (mob.health <= 0) {
+	  doMobDeath(mob);
+	}
+  };
+  
+  var doMobDeath = function (mob) {
+  // remove a mob from ye dungeon
+  
+	var death_xy = mob.getLocation();
+	
+	my_dungeon.removeMonsterAt(death_xy);
+	my_dungeon.setFeatureAt(death_xy, feature_PoolOfBlood);
+	drawMapAt(death_xy);
+	
   };
   
   var doPlayerAction = function ( ) {
@@ -313,6 +416,17 @@ var grogue = function ($, tilecodes, level_gen) {
 	} else {
 	  doPlayerYell();
 	}
+  };
+  
+  var doPlayerInvisibleDebug = function ( ) {
+	if (my_player.is_invisible === true) {
+	  my_player.is_invisible = false;
+	  my_player.setColor(colors.hf_blue);
+	} else {
+	  my_player.is_invisible = true;
+	  my_player.setColor(colors.white);
+	}
+	drawMapAt(my_player.getLocation());
   };
   
   var doPlayerYell = function ( ) {
@@ -508,6 +622,13 @@ var grogue = function ($, tilecodes, level_gen) {
   var doMonsterTurn = function (mob) {
 	var x, y, success, potential_xy, mob_xy = mob.getLocation(), player_xy = my_player.getLocation();
 	
+	// update my FOV
+	updateFov(mob);
+	
+	if (mob.isAware(my_player) !== true) {
+	  return;
+	}
+	
 	x = (player_xy.x - mob_xy.x);
 	x = (x === 0) ? 0 : x / Math.abs(x);
 	y = (player_xy.y - mob_xy.y);
@@ -576,6 +697,7 @@ var grogue = function ($, tilecodes, level_gen) {
 	  }
 	  my_dungeon.setItemAt(locations[i], item);
 	}
+	my_dungeon.setItemAt(result.start_xy, itemFactory({name: 'black pistol', family: itemFamily_Firearm}));
 	
 	// add THE MONKIES
 	for (; i < 25; i += 1) {
@@ -600,7 +722,7 @@ var grogue = function ($, tilecodes, level_gen) {
     initSounds();
     drawEquipment();
     drawInventory();
-    updatePlayerFov()
+    updateFov(my_player);
     drawGame();
   };
   
@@ -694,6 +816,10 @@ var grogue = function ($, tilecodes, level_gen) {
 	} else if (e.keyCode === 32) {
 	  // space
 	  doPlayerAction();
+	  
+	} else if (e.keyCode === 70) {
+	  // f
+	  doPlayerInvisibleDebug();
 	}
   };
 
