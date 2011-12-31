@@ -83,7 +83,10 @@ var constants = {
   playerinfo_height: 192,
   
   equip_width: 192,
-  equip_height: 96
+  equip_height: 96,
+  
+  hoverinfo_width: 192,
+  hoverinfo_height: 90
 
 };
 

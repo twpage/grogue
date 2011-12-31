@@ -1,7 +1,7 @@
 var grogue = function ($, tilecodes, level_gen) {
   var that = {};
   // canvas + contexts
-  var ctx_game, cnv_copy, ctx_copy, ctx_inventory, ctx_equip, ctx_playerinfo;
+  var ctx_game, cnv_copy, ctx_copy, ctx_inventory, ctx_equip, ctx_playerinfo, ctx_hoverinfo;
   
   // gridmanglers
   var my_grid, my_inv_grid, my_equip_grid;
@@ -137,6 +137,27 @@ var grogue = function ($, tilecodes, level_gen) {
 	}
   };
   
+  var drawHoverInfo = function (hover_thing) {
+  // updates whenever player hovers over something.. inventory items, monster, equipment, etc
+  
+	// clear it first
+	ctx_hoverinfo.fillStyle = colors.normal_bg;
+	ctx_hoverinfo.fillRect(0, 0, constants.hoverinfo_width, constants.hoverinfo_height);
+	
+	// just clear and exit if we were intentially passed a NULL item
+	if (hover_thing === null) {
+	  return;
+	}
+	
+	ctx_hoverinfo.font = '12px Verdana';	
+	ctx_hoverinfo.textBaseline = 'top';
+
+	//if (hover_thing.objtype === 'item') {
+	drawTileOn(ctx_hoverinfo, my_tile_codes[hover_thing.getCode()], 0, 0, constants.tile_dst_width, constants.tile_dst_height, hover_thing.getColor(), colors.normal_bg);
+	ctx_hoverinfo.fillStyle = colors.white;
+	ctx_hoverinfo.fillText(hover_thing.getName(), 0, constants.tile_dst_height, constants.hoverinfo_width)
+  };
+  
   var drawPlayerInfo = function ( ) {
   // player name, health, drunkenness, etc!
   
@@ -184,7 +205,7 @@ var grogue = function ($, tilecodes, level_gen) {
   var drawEquipment = function ( ) {
   // update the equip canvas / box on screen
   
-	var ready_item, blade, firearm, i, x, y, w, h, things, names;
+	var ready_item, blade, firearm, i, x, y, w, h, things, pistol_words, names;
 	
 	// clear existing frame
 	ctx_equip.fillStyle = colors.normal_bg;
@@ -196,7 +217,8 @@ var grogue = function ($, tilecodes, level_gen) {
 	ready_item = my_player.equipGet(constants.equip.ready_item);
 	
 	things = [blade, firearm, ready_item];
-	names = ['Blade (bump-attack)', 'Pistol (click)', 'Throw (shift-click, Q to Use)'];
+	pistol_words = (firearm === null || firearm.isLoaded()) ? 'Pistol (click)' : 'Pistol (Space to reload)';
+	names = ['Blade (bump-attack)', pistol_words, 'Throw (shift-click, Q to Use)'];
 	
 	ctx_equip.textBaseline = 'middle';
 	ctx_equip.font = '10px Verdana';
@@ -422,7 +444,11 @@ var grogue = function ($, tilecodes, level_gen) {
 	  alert("no gun!");
 	  return;
 	}
-	//todo: check if gun is loaded
+	
+	if (gun.is_loaded !== true) {
+	  alert("reload!");
+	  return;
+	}
 	var prob = calcShotAccuracy(my_player.getLocation(), mob.getLocation());
 	
 	if (Math.random() < prob) {
@@ -464,7 +490,7 @@ var grogue = function ($, tilecodes, level_gen) {
 	  for (i = 0; i < points.length; i += 1) {
 		impact_xy = points[i];
 		terrain = my_dungeon.getTerrainAt(impact_xy);
-		if (terrain.isWalkable() === false) {
+		if (terrain !== null && terrain.isWalkable() === false) {
 		  my_dungeon.setFeatureAt(impact_xy, feature_Blood);
 		  drawMapAt(impact_xy);
 		  break;
@@ -475,6 +501,37 @@ var grogue = function ($, tilecodes, level_gen) {
 	} else {
 	  my_audio.src = my_sounds['miss_' + Math.floor(Math.random()*4)];
 	  my_audio.play();
+	}
+	
+	// grab a new gun
+	gun.is_loaded = false;
+	drawEquipment();
+	doPlayerAutoRearm(gun);
+  };
+  
+  var doPlayerAutoRearm = function (current_gun) {
+  // will automatically swap the existing pistol for a fresh one
+  // todo: make this a player option?
+  
+	var i, item, grab_me = null;
+	var	items = my_player.inventoryGet();
+	
+	for (i = 0; i < items.length; i += 1) {
+	  item = items[i];
+	  if (compareItemToFamily(item, itemFamily_Firearm) && item.isLoaded()) {
+		grab_me = item;
+		break;
+	  }
+	}
+	
+	if (grab_me !== null) {
+	  //my_player.inventoryAdd(current_gun);
+	  my_player.equipSet(constants.equip.firearm, {"item": grab_me, "index": i});
+	  drawInventory();
+	  drawEquipment();
+	} else {
+	  doPlayerYell("Yarrr... out of pistols!");
+	  //alert("no more loaded guns!!");
 	}
   };
   
@@ -497,21 +554,43 @@ var grogue = function ($, tilecodes, level_gen) {
   };
   
   var doPlayerAction = function ( ) {
-	var player_xy, item;
+	var player_xy, item, gun, i;
 	
 	player_xy = my_player.getLocation();
 	item = my_dungeon.getItemAt(player_xy);
+	gun = my_player.equipGet(constants.equip.firearm);
 	
 	// assume picking up item if one is on the floor
-	if (item !== null) {
-	  if (item.isContainer() === true) {
-		doPlayerOpenContainer(item);
-	  } else {
-		doPlayerPickupItem(item);
-	  }
+	if (gun !== null && !gun.isLoaded()) {
+	  // reload!
+	  gun.is_loaded = true;
+	  drawEquipment();
+	} else if (item !== null) {
+	  doPlayerPickupItem(item);
 	} else {
-	  doPlayerYell();
+	  var check_unloaded = false;
+	  var items = my_player.inventoryGet();
+	  for (i = 0; i < items.length; i += 1) {
+		if (compareItemToFamily(items[i], itemFamily_Firearm) && !items[i].isLoaded()) {
+		  items[i].is_loaded = true;
+		  check_unloaded = true;
+		  break;
+		}
+	  }
+	  
+	  if (check_unloaded) {
+		doPlayerYell("Reloadin'!!");
+		drawInventory();
+		return;
+		
+	  } else {
+		doPlayerYell();
+	  }
 	}
+  };
+  
+  var hasUnloadedFirearms = function ( ) {
+  // returns true if the player has any unloaded firearms
   };
   
   var doPlayerInvisibleDebug = function ( ) {
@@ -525,26 +604,28 @@ var grogue = function ($, tilecodes, level_gen) {
 	drawMapAt(my_player.getLocation());
   };
   
-  var doPlayerYell = function ( ) {
-	var u, text, player_xy;
+  var doPlayerYell = function (text) {
+	var u, player_xy;
 	
-	u = Math.random();
-	if (u < 0.334) {
-	  text = 'Avast!!!!!!!';
-	} else if (u < 0.667) {
-	  text = 'Arrrr!!!!!!!';
-	} else {
-	  text = 'Yarrr.......';
+	if (text === '' || text === undefined) {
+	  u = Math.random();
+	  if (u < 0.334) {
+		text = 'Avast!!!!!!!';
+	  } else if (u < 0.667) {
+		text = 'Arrrr!!!!!!!';
+	  } else {
+		text = 'Yarrr.......';
+	  }
 	}
-	
+	  
 	// create a speech bubble element
 	var bubble = $('<div class="triangle-border">' + text + '</div>');
 	
 	// position over the speaker
 	player_xy = my_player.getLocation();
 	bubble[0].style.position = "absolute";
-	bubble[0].style.top = (((player_xy.y - my_screen.y) * constants.tile_dst_height) - 15) + 'px';
-	bubble[0].style.left = (((player_xy.x - my_screen.x) * constants.tile_dst_width) - 40) + 'px';
+	bubble[0].style.top = (((player_xy.y - my_screen.y) * constants.tile_dst_height) - 45) + 'px';
+	bubble[0].style.left = (((player_xy.x - my_screen.x) * constants.tile_dst_width) - 50) + 'px';
 	$('#id_div_container').append(bubble[0]);
 	$(bubble[0]).fadeOut(2000)
 	
@@ -564,6 +645,17 @@ var grogue = function ($, tilecodes, level_gen) {
 	  if (compareItemToFamily(item, itemFamily_Booty) === true) {
 		my_audio.src = my_sounds['booty_' + Math.floor(Math.random()*4)];
 		my_audio.play();
+	  }
+	  
+	  // todo: check to see if new weapon just picked up is better than current & automatically replace if so  
+	  if (compareItemToFamily(item, itemFamily_Blade) && my_player.equipGet(constants.equip.blade) === null) {
+		my_player.equipSet(constants.equip.blade, {"item": item, "index": my_player.inventoryGet().length - 1});
+		drawEquipment();
+		doPlayerYell("A fine blade!");
+	  } else if (compareItemToFamily(item, itemFamily_Firearm) && my_player.equipGet(constants.equip.firearm) === null) {
+		my_player.equipSet(constants.equip.firearm, {"item": item, "index": my_player.inventoryGet().length - 1});
+		drawEquipment();
+		doPlayerYell("'tis a fine day for shootin'!");
 	  }
 	  
 	  drawMapAt(player_xy);
@@ -607,6 +699,9 @@ var grogue = function ($, tilecodes, level_gen) {
   
   var doPlayerActionDrink = function (ye_flask) {
 	
+	my_audio.src = my_sounds['drink_' + Math.floor(Math.random()*5)];
+	my_audio.play();
+	  
 	my_player.drunk += 20;
 	drawPlayerInfo();
 	
@@ -759,23 +854,35 @@ var grogue = function ($, tilecodes, level_gen) {
   };
   
   var doEventGainFocus = function (grid_xy) {
-    var html, mob, terrain, item, border_color, map_xy;
+    var html, mob, terrain, item, is_player, player_xy, border_color, map_xy;
     
 	border_color = colors.white;
     map_xy = {"x": grid_xy.x + my_screen.x, "y": grid_xy.y + my_screen.y};
 
+    player_xy = my_player.getLocation();
     mob = my_dungeon.getMonsterAt(map_xy);
+	can_see = my_player.getFovAt(map_xy) === true;
+	
+    is_player = compareCoords(map_xy, player_xy);
     terrain = my_dungeon.getTerrainAt(map_xy);
     item = my_dungeon.getItemAt(map_xy);
 	
-    if (mob !== null) {
-      html = 'a ' + mob.getName() + ' is here';
-	  border_color = colors.red;
-    } else if (item != null) {
-      html = 'you see a ' + item.getName();
-    } else {
-      html = terrain.getName();
-    }
+	if (!can_see) {
+	  // memories...
+	} else {
+	  if (mob !== null && !is_player) {
+		html = 'a ' + mob.getName() + ' is here';
+		if (calcShotAccuracy(player_xy, mob.getLocation()) >= 0.5) {
+		  border_color = colors.red;
+		}
+		drawHoverInfo(mob);
+	  } else if (item != null) {
+		html = 'you see a ' + item.getName();
+		drawHoverInfo(item);
+	  } else {
+		html = terrain.getName();
+	  }
+	}
     
     html += ' at (' + map_xy.x + ', ' + map_xy.y + ')';
     $('#id_div_hover').html(html);
@@ -810,10 +917,37 @@ var grogue = function ($, tilecodes, level_gen) {
   
   var doInventoryEventGainFocus = function (grid_xy) {
     my_inv_grid.drawBorderAt(grid_xy, colors.white);
+	var inv_result = getInventoryItemFromCoords(grid_xy);
+	
+	if (inv_result.item !== null) {
+	  drawHoverInfo(inv_result.item);
+	}
+	
   };
   
   var doInventoryEventLeaveFocus = function (grid_xy) {
     drawInventory();
+  };
+  
+  var doEquipEventGainFocus = function (grid_xy) {
+	var item = null;
+	if (grid_xy.y === 0) {
+	  item = my_player.equipGet(constants.equip.blade);
+	} else if (grid_xy.y === 1) {
+	  item = my_player.equipGet(constants.equip.firearm);
+	} else if (grid_xy.y === 2) {
+	  item = my_player.equipGet(constants.equip.ready_item);
+	} 
+	
+	if (item !== null) {
+	  drawHoverInfo(item);
+	}
+	
+    $('#id_div_hover').html('equip: ' + grid_xy.x + ', ' + grid_xy.y);
+  };
+  
+  var doEquipEventLeaveFocus = function (grid_xy) {
+    //drawInventory();
   };
   
   ////////////////////////////////////////////////////////////////////////////////  
@@ -898,7 +1032,7 @@ var grogue = function ($, tilecodes, level_gen) {
 	  if (u < 0.25) {
 		item = itemFactory({name: 'sword', family: itemFamily_Blade});
 	  } else if (u < 0.50) {
-		item = itemFactory({name: 'pistol', family: itemFamily_Firearm});
+		item = firearmFactory({name: 'pistol', family: itemFamily_Firearm});
 	  } else if (u < 0.75) {
 		item = itemFactory({name: 'grog', family: itemFamily_Flask});
 	  } else {
@@ -906,8 +1040,8 @@ var grogue = function ($, tilecodes, level_gen) {
 	  }
 	  my_dungeon.setItemAt(locations[i], item);
 	}
-	//my_dungeon.setItemAt(result.start_xy, itemFactory({name: 'black pistol', family: itemFamily_Firearm}));
-	my_dungeon.setItemAt(result.start_xy, itemFactory({name: 'treasure chest', family: itemFamily_Chest}));
+	my_dungeon.setItemAt(result.start_xy, firearmFactory({name: 'black pistol', family: itemFamily_Firearm}));
+	//my_dungeon.setItemAt(result.start_xy, itemFactory({name: 'treasure chest', family: itemFamily_Chest}));
 	
 	// add THE MONKIES
 	for (; i < 25; i += 1) {
@@ -959,6 +1093,12 @@ var grogue = function ($, tilecodes, level_gen) {
 	my_sounds['miss_1'] = 'static/audio/miss_1.wav';
 	my_sounds['miss_2'] = 'static/audio/miss_2.wav';
 	my_sounds['miss_3'] = 'static/audio/miss_3.wav';
+	
+	my_sounds['drink_0'] = 'static/audio/drink_0.wav';
+	my_sounds['drink_1'] = 'static/audio/drink_1.wav';
+	my_sounds['drink_2'] = 'static/audio/drink_2.wav';
+	my_sounds['drink_3'] = 'static/audio/drink_3.wav';
+	my_sounds['drink_4'] = 'static/audio/drink_4.wav';
 
   };
   
@@ -1000,13 +1140,21 @@ var grogue = function ($, tilecodes, level_gen) {
     // equip box
 	var cnv_equip = $('#id_cnv_equip').get()[0];
 	ctx_equip = cnv_equip.getContext("2d");
-	my_equip_grid = gridmangler(cnv_equip, constants.tile_dst_width, constants.tile_dst_height);
+	my_equip_grid = gridmangler(cnv_equip, constants.equip_width, constants.tile_dst_height);
+    my_equip_grid.addGridEvent("gainfocus", doEquipEventGainFocus);
+    my_equip_grid.addGridEvent("leavefocus", doEquipEventLeaveFocus);
 	
 	// player info
 	var cnv_playerinfo = $('#id_cnv_playerinfo').get()[0];
 	ctx_playerinfo = cnv_playerinfo.getContext("2d");
 	ctx_playerinfo.fillStyle = colors.normal_bg;
-	ctx_playerinfo.fillRect(0, 0, cnv_playerinfo.width, cnv_playerinfo.height);
+	ctx_playerinfo.fillRect(0, 0, constants.playerinfo_width, constants.playerinfo_height);
+	
+	// hover info
+	var cnv_hoverinfo = $('#id_cnv_hoverinfo').get()[0];
+	ctx_hoverinfo = cnv_hoverinfo.getContext("2d");
+	ctx_hoverinfo.fillStyle = colors.normal_bg;
+	ctx_hoverinfo.fillRect(0, 0, constants.hoverinfo_width, constants.hoverinfo_height);
 	
     initGame();
   };

@@ -123,62 +123,58 @@ var itemFamilyFactory = function (spec) {
     return that;
 };
 
-var itemFactory = function (spec) {
-    // other private instance variables
+var firearmFactory = function (spec) {
+    var that = itemFactory(spec);
+    that.kind = 'firearm';
+    that.is_loaded = true;
     
-    // my private
-    var my = {};
-    my.name = spec.name;
-    my.family = spec.family;
+    that.isLoaded = function ( ) {
+        return this.is_loaded;
+    };
+    
+    that.getColor = function ( ) {
+        if (this.is_loaded === true) {
+            return that.color;
+        } else {
+            return 'rgb(0, 255, 0)';
+        }
+    }
+    
+    return that;
+};
+
+var itemFactory = function (spec) {
+
+    var that = {};
+    that.name = spec.name;
+    that.family = spec.family;
     if (spec.color === undefined) {
-        my.color = my.family.getColor();
+        that.color = that.family.getColor();
     } else {
-        my.color = spec.color;
+        that.color = spec.color;
     }
     
     if (spec.bg_color === undefined) {
-        my.bg_color = my.family.getBackgroundColor();
+        that.bg_color = that.family.getBackgroundColor();
     } else {
-        my.bg_color = spec.bg_color;
+        that.bg_color = spec.bg_color;
     }
 
     // some items in the same family can have different codes (bootay)
     if (spec.code === undefined) {
-        my.code = my.family.getCode();
+        that.code = that.family.getCode();
     } else {
-        my.code = spec.code;
+        that.code = spec.code;
     }
-    my.is_container = my.family.is_container;
-    my.inventory = [];
     
-    // that public
-    var that = {};
     that.id = idGenerator.new_id();
     that.objtype = 'item';
-    that.getName = function ( ) { return my.name; };
-    that.getFamily = function ( ) { return my.family; };
-    that.getCode = function ( ) { return my.code; };
-    that.getColor = function ( ) { return my.color; };
-    that.getBackgroundColor = function ( ) { return my.bg_color; };
-    that.isContainer = function ( ) { return my.is_container; };
-
-    // INVENTORY
-    //////////////////////////////////////////////////
-    that.inventoryAdd = function (item) {
-        if (my.inventory.length === constants.inventory_max_items) {
-            return false;
-        }
-        my.inventory.push(item);
-        return true;
-    };
-    
-    that.inventoryRemove = function (index) {
-        my.inventory.splice(index, 1);
-    };
-    
-    that.inventoryGet = function ( ) {
-        return my.inventory;
-    };
+    that.kind = 'none';
+    that.getName = function ( ) { return that.name; };
+    that.getFamily = function ( ) { return that.family; };
+    that.getCode = function ( ) { return that.code; };
+    that.getColor = function ( ) { return that.color; };
+    that.getBackgroundColor = function ( ) { return that.bg_color; };
     
     return that;
 };
