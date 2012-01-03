@@ -27,6 +27,25 @@ body {
     -moz-user-select: none;
 }
 
+a {
+	color: white;
+}
+
+td.changename {
+	text-align: right;
+	font-size: 11px;
+}
+
+div#id_div_readme {
+	font-size: 14px;
+}
+
+canvas#id_cnv_container {
+	border-style: double; 
+	border-width: 5px;
+	border-color: #CD853F;
+}
+
 
 /* ============================================================================================================================
 == BUBBLE WITH A BORDER AND TRIANGLE

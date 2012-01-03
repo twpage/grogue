@@ -56,9 +56,9 @@ var level_generator = function ( ) {
                 xy = {"x": x, "y": y};
                 u = Math.random();
                 if (u <= FILL_PROB) {
-                    lvl.setTerrainAt(xy, terrain_Wall);
+                    lvl.setTerrainAt(xy, lib.terrain.wall);
                 } else {
-                    lvl.setTerrainAt(xy, terrain_Floor);
+                    lvl.setTerrainAt(xy, lib.terrain.floor);
                 }
             }
         }
@@ -69,9 +69,9 @@ var level_generator = function ( ) {
                 xy = {"x": x, "y": y};
                 u = Math.random();
                 if (u <= FILL_PROB) {
-                    lvl.setTerrainAt(xy, terrain_Wall);
+                    lvl.setTerrainAt(xy, lib.terrain.wall);
                 } else {
-                    lvl.setTerrainAt(xy, terrain_Floor);
+                    lvl.setTerrainAt(xy, lib.terrain.floor);
                 }
             }
         }
@@ -105,16 +105,16 @@ var level_generator = function ( ) {
 			
 			u = Math.random();
 			if (u < 0.5) {
-				lvl.setTerrainAt(top_xy, terrain_Floor);
+				lvl.setTerrainAt(top_xy, lib.terrain.floor);
 			} else {
-				lvl.setTerrainAt(top_xy, terrain_Wall);
+				lvl.setTerrainAt(top_xy, lib.terrain.wall);
 			}
 				
 			u = Math.random();
 			if (u < 0.5) {
-				lvl.setTerrainAt(bottom_xy, terrain_Floor);
+				lvl.setTerrainAt(bottom_xy, lib.terrain.floor);
 			} else {
-				lvl.setTerrainAt(bottom_xy, terrain_Wall);
+				lvl.setTerrainAt(bottom_xy, lib.terrain.wall);
 			}
 		}
 		
@@ -125,16 +125,16 @@ var level_generator = function ( ) {
 			
 			u = Math.random();
 			if (u < 0.5) {
-				lvl.setTerrainAt(left_xy, terrain_Floor);
+				lvl.setTerrainAt(left_xy, lib.terrain.floor);
 			} else {
-				lvl.setTerrainAt(left_xy, terrain_Wall);
+				lvl.setTerrainAt(left_xy, lib.terrain.wall);
 			}
 				
 			u = Math.random();
 			if (u < 0.5) {
-				lvl.setTerrainAt(right_xy, terrain_Floor);
+				lvl.setTerrainAt(right_xy, lib.terrain.floor);
 			} else {
-				lvl.setTerrainAt(right_xy, terrain_Wall);
+				lvl.setTerrainAt(right_xy, lib.terrain.wall);
 			}
 		}
 	};
@@ -185,10 +185,10 @@ var level_generator = function ( ) {
                 terrain = lvl.getTerrainAt(xy_loc);
                 
                 // figure out how many surrounding neighbors are WALLS
-                match_lst = getSurroundingTerrainTypes(xy_loc, lvl, terrain_Wall);
+                match_lst = getSurroundingTerrainTypes(xy_loc, lvl, lib.terrain.wall);
                 wall_count = match_lst.length;
                 
-                if (compareTerrain(terrain, terrain_Floor) === true) {
+                if (compareTerrain(terrain, lib.terrain.floor) === true) {
                     if (wall_count >= 5) {
                         wall_updates_lst.push(xy_loc)
                     }
@@ -200,11 +200,11 @@ var level_generator = function ( ) {
         
         // go through our updates and apply them after we're done with a complete pass!!
         for (i = 0; i < wall_updates_lst.length; i += 1) {
-            lvl.setTerrainAt(wall_updates_lst[i], terrain_Wall);
+            lvl.setTerrainAt(wall_updates_lst[i], lib.terrain.wall);
         }
         
         for (i = 0; i < floor_updates_lst.length; i += 1) {
-            lvl.setTerrainAt(floor_updates_lst[i], terrain_Floor);
+            lvl.setTerrainAt(floor_updates_lst[i], lib.terrain.floor);
         }
         
         return true;

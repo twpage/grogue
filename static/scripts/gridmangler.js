@@ -351,7 +351,11 @@ var gridmangler = function (canvas, tile_width, tile_height) {
 	return my_context;
     };
     
-
+	that.removeEventListeners = function ( ) {
+		my_canvas.removeEventListener("mousedown", canvasOnMousedown, false);
+		my_canvas.removeEventListener("mousemove", canvasOnMousemove, false);
+	};
+	
     // add these last
     my_canvas.addEventListener("mousedown", canvasOnMousedown, false);
     my_canvas.addEventListener("mousemove", canvasOnMousemove, false);

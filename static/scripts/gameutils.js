@@ -86,7 +86,13 @@ var constants = {
   equip_height: 96,
   
   hoverinfo_width: 192,
-  hoverinfo_height: 90
+  hoverinfo_height: 90,
+  
+  container_width: 192,
+  container_height: 96,
+  container_tiles_width: 8,
+  container_tiles_height: 3,
+  container_max_items: 24
 
 };
 
@@ -105,5 +111,12 @@ var colors = {
   memory: 'rgb(88, 88, 88)',
   transparent: 'transparency',
   blood: 'rgb(165, 0, 0)',
-  grey: 'rgb(125, 125, 125)'
+  grey: 'rgb(125, 125, 125)',
+  grey_border: '#cbcbcb',
+  green: 'rgb(0, 255, 0)'
+};
+
+var flags = {
+  immobile: 'immobile',
+  explodes: 'explodes'
 };

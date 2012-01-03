@@ -29,6 +29,14 @@ var compareItemFamily = function (f1, f2) {
     return f1.getName() === f2.getName();
 };
 
+var compareMonsterToFamily = function (m1, f2) {
+    return compareMonsterFamily(m1.getFamily(), f2);
+};
+
+var compareMonsterFamily = function (f1, f2) {
+    return f1.getName() === f2.getName();
+};
+
 var xyKey = function (grid_xy) {
     return grid_xy.x + "+" + grid_xy.y;
 };
@@ -123,10 +131,93 @@ var itemFamilyFactory = function (spec) {
     return that;
 };
 
-var firearmFactory = function (spec) {
+var mixingBarrelFactory = function (spec) {
+    spec.family = lib.itemFamily.mixingbarrel;
+    
     var that = itemFactory(spec);
+    that.kind = 'mixingbarrel';
+    that.is_container = true;
+    that.inventory = [];
+    
+    // INVENTORY
+    //////////////////////////////////////////////////
+    that.inventoryAdd = function (item) {
+        if (this.inventory.length === constants.container_max_items) {
+            return false;
+        }
+        this.inventory.push(item);
+        return true;
+    };
+    
+    that.inventoryRemove = function (index) {
+        this.inventory.splice(index, 1);
+    };
+    
+    that.inventoryGet = function ( ) {
+        return this.inventory;
+    };
+    
+    return that;
+};
+
+var containerFactory = function (spec) {
+    spec.family = lib.itemFamily.container;
+    
+    var that = itemFactory(spec);
+    that.kind = 'container';
+    that.is_container = true;
+    that.inventory = [];
+    
+    // INVENTORY
+    //////////////////////////////////////////////////
+    that.inventoryAdd = function (item) {
+        if (this.inventory.length === constants.container_max_items) {
+            return false;
+        }
+        this.inventory.push(item);
+        return true;
+    };
+    
+    that.inventoryRemove = function (index) {
+        this.inventory.splice(index, 1);
+    };
+    
+    that.inventoryGet = function ( ) {
+        return this.inventory;
+    };
+    
+    return that;
+};
+
+var weaponFactory = function (spec) {
+    var that = itemFactory(spec);
+    that.kind = 'weapon';
+    that.damage = spec.damage || 1;
+    
+    that.getDamage = function ( ) {
+        return this.damage;
+    };
+    
+    return that;
+};
+
+
+var bladeFactory = function (spec) {
+    spec.family = lib.itemFamily.blade;
+    
+    var that = weaponFactory(spec);
+    that.kind = 'blade';
+    
+    return that;
+};
+
+var firearmFactory = function (spec) {
+    spec.family = lib.itemFamily.firearm;
+    
+    var that = weaponFactory(spec);
     that.kind = 'firearm';
     that.is_loaded = true;
+    that.range = spec.range || 5;
     
     that.isLoaded = function ( ) {
         return this.is_loaded;
@@ -198,6 +289,8 @@ var monsterFamilyFactory = function (spec) {
         my.bg_color = spec.bg_color;
     }
     
+    my.flags = spec.flags || [];
+    
     // that public
     var that = {};
     that.id = idGenerator.new_id();
@@ -206,6 +299,10 @@ var monsterFamilyFactory = function (spec) {
     that.getCode = function ( ) { return my.code; };
     that.getColor = function ( ) { return my.color; };
     that.getBackgroundColor = function ( ) { return my.bg_color; };
+    
+    that.getFlags = function ( ) {
+        return my.flags;
+    };
     
     return that;
 };
@@ -223,6 +320,8 @@ var monsterFactory = function (spec) {
     my.fov = {};
     my.aware = [];
     my.memory = {};
+    my.flags = spec.flags || [];
+    my.flags = my.flags.concat(my.family.getFlags());
     
     if (spec.color === undefined) {
         my.color = my.family.getColor();
@@ -240,12 +339,14 @@ var monsterFactory = function (spec) {
     var that = {};
     that.objtype = 'monster';
     that.id = idGenerator.new_id();
-    that.health = 10;
-    that.max_health = 10;
-    that.drunk = 100;
+    that.health = spec.health || 10;
+    that.max_health = spec.health || 10;
+    that.drunk = 200;
     that.max_drunk = 200;
+    that.last_hit = 0;
     
     that.getName = function ( ) { return my.name; };
+    that.setName = function (new_name) { my.name = new_name; };
     that.getFamily = function ( ) { return my.family; };
     that.getColor = function ( ) { return my.color; };
     that.setColor = function (new_color) { my.color = new_color; };
@@ -368,6 +469,30 @@ var monsterFactory = function (spec) {
     };
     
     //that.getMemory = function ( ) { return my.memory; };
+    
+    // FLAGS
+    //////////////////////////////////////////////////
+    that.getFlags = function ( ) {
+        return my.flags;
+    };
+    
+    that.addFlag = function (flag) {
+        my.flags.push(flag);
+        return true;
+    };
+    
+    that.removeFlag = function (flag) {
+        var index = $.inArray(flag, my.flags);
+        if (index > -1) {
+            my.flags.splice(index, 1);
+        }
+        return true;
+    };
+    
+    that.hasFlag = function (flag) {
+        var index = $.inArray(flag, my.flags);
+        return index > -1;
+    };
     
     return that;
 };
@@ -553,21 +678,7 @@ var levelFactory = function (spec) {
 
 ////////////////////////////////////////////////////////////
 
-var itemFamily_Blade = itemFamilyFactory({name: 'blade', code: 'SLASH', color: colors.steel});
-var itemFamily_Firearm = itemFamilyFactory({name: 'firearm', code: 'GUN_RIGHT', color: colors.hf_orange});
-var itemFamily_Flask = itemFamilyFactory({name: 'flask', code: 'BANG', color: colors.pink});
-var itemFamily_Booty = itemFamilyFactory({name: 'booty', code: 'DOLLAR', color: colors.yellow});
-var itemFamily_Chest = itemFamilyFactory({name: 'container', code: 'OPEN_PAREN', color: colors.yellow, is_container: true});
 
-var terrain_Floor = terrainFactory({name: 'floor', code: 'PERIOD'});
-var terrain_Wall = terrainFactory({name: 'wall', code: 'HASH', is_walkable: false, is_opaque: true});
-var terrain_Chasm = terrainFactory({name: 'chasm', code: 'COLON', is_walkable: false});
-
-var feature_Blood = featureFactory({name: 'blood', bg_color: colors.blood}); //code: 'APPROX', 
-var feature_PoolOfBlood = featureFactory({name: 'blood', code: 'BLOOD_0', color: colors.blood}); //code: 'APPROX', 
-
-var monsterFamily_Player = monsterFamilyFactory({name: 'player', code: 'AT', color: colors.hf_blue});
-var monsterFamily_Monkey = monsterFamilyFactory({name: 'monkey', code: 'm', color: colors.maroon});
 
 ////////////////////////////////////////////////////////////
 

@@ -1,16 +1,20 @@
 var grogue = function ($, tilecodes, level_gen) {
+  var my_version = 'version 0.5: "11-day version"';
+  
   var that = {};
   // canvas + contexts
-  var ctx_game, cnv_copy, ctx_copy, ctx_inventory, ctx_equip, ctx_playerinfo, ctx_hoverinfo;
+  var my_game_over = false;
+  var cnv_copy, cnv_container;
+  var ctx_game, ctx_copy, ctx_inventory, ctx_equip, ctx_playerinfo, ctx_hoverinfo, ctx_container;
   
   // gridmanglers
-  var my_grid, my_inv_grid, my_equip_grid;
+  var my_grid, my_inv_grid, my_equip_grid, my_container_grid;
   
   // tiles
   var my_tiles, my_tile_codes = tilecodes;
   
   // global game consts
-  var my_dungeon, my_player;
+  var my_dungeon, my_player, my_open_container, my_container_is_open = false;
   
   // sounds
   var my_audio = document.createElement('audio');
@@ -19,6 +23,8 @@ var grogue = function ($, tilecodes, level_gen) {
   var my_level_generator = level_gen;
   //var my_terrain = {};
   var my_screen = {"x": 0, "y": 0, "width": constants.game_tiles_width, "height": constants.game_tiles_height};
+  
+  var my_turn = 0;
   
   ////////////////////////////////////////////////////////////////////////////////
   // PRIVATE FUNCTIONS
@@ -103,7 +109,7 @@ var grogue = function ($, tilecodes, level_gen) {
   // DRAWING + GRAPHICS
   ////////////////////////////////////////////////////////////////////////////////
 
-  drawGame = function ( ) {
+  var drawGame = function ( ) {
   // redraw every tile on the game screen
   
     var x, y;
@@ -115,7 +121,7 @@ var grogue = function ($, tilecodes, level_gen) {
     }
   };
   
-  drawInventory = function ( ) {
+  var drawInventory = function ( ) {
   // update the inventory box on screen
 	
 	var i, x, y, gx, gy, item, fore_color;
@@ -137,9 +143,10 @@ var grogue = function ($, tilecodes, level_gen) {
 	}
   };
   
-  var drawHoverInfo = function (hover_thing) {
+  var drawHoverInfo = function (hover_thing, equipped, map_xy) {
   // updates whenever player hovers over something.. inventory items, monster, equipment, etc
-  
+	var text, half_height = constants.tile_dst_height / 2, col_2 = constants.hoverinfo_width / 2;
+	
 	// clear it first
 	ctx_hoverinfo.fillStyle = colors.normal_bg;
 	ctx_hoverinfo.fillRect(0, 0, constants.hoverinfo_width, constants.hoverinfo_height);
@@ -149,15 +156,74 @@ var grogue = function ($, tilecodes, level_gen) {
 	  return;
 	}
 	
-	ctx_hoverinfo.font = '12px Verdana';	
-	ctx_hoverinfo.textBaseline = 'top';
+	ctx_hoverinfo.font = '14px Verdana';	
+	ctx_hoverinfo.textBaseline = 'middle';
 
-	//if (hover_thing.objtype === 'item') {
 	drawTileOn(ctx_hoverinfo, my_tile_codes[hover_thing.getCode()], 0, 0, constants.tile_dst_width, constants.tile_dst_height, hover_thing.getColor(), colors.normal_bg);
 	ctx_hoverinfo.fillStyle = colors.white;
-	ctx_hoverinfo.fillText(hover_thing.getName(), 0, constants.tile_dst_height, constants.hoverinfo_width)
+	ctx_hoverinfo.fillText(hover_thing.getName(), constants.tile_dst_width, half_height, constants.hoverinfo_width)
+	
+	if (hover_thing.objtype === 'item') {
+	  if (equipped && hover_thing.kind === 'firearm') {
+		text = "Dmg: " + hover_thing.getDamage();
+		ctx_hoverinfo.fillText(text, 0, half_height*2, constants.hoverinfo_width)
+
+		text = "Range: " + hover_thing.range;
+		ctx_hoverinfo.fillText(text, col_2, half_height*2, constants.hoverinfo_width)
+		
+		text = hover_thing.isLoaded() ? "Loaded " : "Unloaded";
+		ctx_hoverinfo.fillText(text, 0, half_height*3, constants.hoverinfo_width)
+
+	  } else if (equipped && hover_thing.kind === 'blade') {
+		text = "Dmg: " + hover_thing.getDamage();
+		ctx_hoverinfo.fillText(text, 0, half_height*2, constants.hoverinfo_width)
+
+	  } 
+	} else if (hover_thing.objtype === 'mob') {
+	  
+	} else if (hover_thing.objtype === 'terrain' && map_xy !== undefined) {
+	  ////feature = my_dungeon.getFeatureAt(map_xy);
+	  
+	  //if (feature_bg_color !== colors.transparent) {
+		//bg_color = feature_bg_color;
+	  //}
+	  //if (feature_fore_color !== colors.transparent) {
+	  //fore_color = feature_fore_color;
+	  //}
+	  
+	  //if (feature_code !== 'NONE') {
+	  //tile_code = my_tile_codes[feature_code];
+	  //}
+	}
   };
   
+  var drawContainer = function ( ) {
+  // shows up when you open a container
+	
+	// clear it first
+	ctx_container.fillStyle = colors.normal_bg;
+	ctx_container.fillRect(0, 0, constants.container_width, constants.container_height);
+	
+	var i, x, y, gx, gy, item, fore_color;
+	var inventory = my_open_container.inventoryGet();
+	
+	for (i = 0; i < constants.container_max_items; i += 1) {
+	  x = i % constants.container_tiles_width;
+	  y = Math.floor(i / constants.container_tiles_width);
+	  gx = x * constants.tile_dst_width;
+	  gy = y * constants.tile_dst_height;
+	  
+	  if (i < inventory.length) {
+		item = inventory[i];
+		fore_color = item.getColor();
+		drawTileOn(ctx_container, my_tile_codes[item.getCode()], gx, gy, constants.tile_dst_width, constants.tile_dst_height, fore_color, colors.normal_bg);
+	  } else {
+		drawTileOn(ctx_container, my_tile_codes['SPACE'], gx, gy, constants.tile_dst_width, constants.tile_dst_height, colors.normal_fore, colors.normal_bg);
+	  }
+	}
+	
+  }
+	
   var drawPlayerInfo = function ( ) {
   // player name, health, drunkenness, etc!
   
@@ -180,7 +246,11 @@ var grogue = function ($, tilecodes, level_gen) {
 	ctx_playerinfo.fillStyle = colors.white;	
 	ctx_playerinfo.fillText("Health: " + my_player.health, 2, 40, constants.playerinfo_width - 2);
 
-	drawHealthBar(ctx_playerinfo, 0, 62, constants.playerinfo_width - 2, 20, colors.hf_blue, colors.grey, my_player.drunk, my_player.max_drunk);
+	if (my_player.drunk > my_player.max_drunk) {
+	  drawHealthBar(ctx_playerinfo, 0, 62, constants.playerinfo_width - 2, 20, colors.green, colors.grey, my_player.drunk, my_player.max_drunk);
+	} else {
+	  drawHealthBar(ctx_playerinfo, 0, 62, constants.playerinfo_width - 2, 20, colors.hf_blue, colors.grey, my_player.drunk, my_player.max_drunk);
+	}
 	ctx_playerinfo.strokeStyle = colors.white;
 	ctx_playerinfo.strokeRect(0, 62, constants.playerinfo_width - 2, 20);
 	ctx_playerinfo.fillStyle = colors.white;	
@@ -197,7 +267,7 @@ var grogue = function ($, tilecodes, level_gen) {
 	context.fillRect(x, y, max_width, height);
 	
 	// figure out how healthy we are
-	width = Math.round((health / max_health) * max_width, 0);
+	width = Math.round(Math.min(1.0, health / max_health) * max_width, 0);
 	context.fillStyle = color_full;
 	context.fillRect(x, y, width, height);
   };
@@ -270,7 +340,7 @@ var grogue = function ($, tilecodes, level_gen) {
 	context.drawImage(cnv_copy, x, y, width, height);
   };
   
-  drawMapAt = function (map_xy) {
+  var drawMapAt = function (map_xy) {
 	var terrain, item, feature, mob, fore_color, bg_color, tile_code, grid_x, grid_y, can_see, memory;
 	var feature_bg_color, feature_fore_color, feature_code;
 	
@@ -280,6 +350,7 @@ var grogue = function ($, tilecodes, level_gen) {
 	grid_y = grid_xy.y * constants.tile_dst_height;
 	
 	can_see = my_player.getFovAt(map_xy);
+	
     is_player = compareCoords(map_xy, my_player.getLocation());
     mob = my_dungeon.getMonsterAt(map_xy);
     terrain = my_dungeon.getTerrainAt(map_xy);
@@ -356,6 +427,24 @@ var grogue = function ($, tilecodes, level_gen) {
   // player interactions
   ////////////////////////////////////////////////////////////////////////////////
 
+  var endPlayerTurn = function ( ) {
+	my_turn += 1;
+	
+	// used up some alcohol
+	if (my_turn % 2 === 0) {
+	  my_player.drunk -= 1;
+	}
+	
+	// heal wounds
+	if (my_player.health < my_player.max_health && my_player.drunk > 1 && (my_turn - my_player.last_hit) >= 10) {
+	  my_player.drunk -= 1;
+	  my_player.health += 1;
+	}
+	
+	drawPlayerInfo();
+	doMonsterTurns();
+  };
+  
   doPlayerMove = function (offset_xy) {
 	var player_xy, new_xy, terrain, mob, update_scroll, fov_updates, i;
 	
@@ -363,14 +452,14 @@ var grogue = function ($, tilecodes, level_gen) {
 	new_xy = {x: player_xy.x + offset_xy.x, y: player_xy.y + offset_xy.y};
 	
 	if (my_dungeon.isValidCoordinate(new_xy) !== true) {
-	  alert("bad coord");
+	  //alert("bad coord");
 	  return;
 	} 
 	
 	// check terrain
 	terrain = my_dungeon.getTerrainAt(new_xy);
 	if (terrain.isWalkable() === false) {
-	  alert("you can't walk there");
+	  //alert("you can't walk there");
 	  return;
 	}
 	
@@ -401,15 +490,23 @@ var grogue = function ($, tilecodes, level_gen) {
 	  }
 	}
 	
-	doMonsterTurns();
+	endPlayerTurn();
   };
   
   var doPlayerBump = function (mob) {
-	//alert("POW!");
+  // melee attack a monster
+  
+	var melee_weapon, damage;
+	
 	my_audio.src = my_sounds['hit_' + Math.floor(Math.random()*5)];
 	my_audio.play();
 	
-	doMobDamage(mob, 2);
+	melee_weapon = my_player.equipGet(constants.equip.blade);
+	damage = (melee_weapon !== null) ? melee_weapon.getDamage() : 1;
+	  
+	
+	doMobDamage(mob, damage);
+	endPlayerTurn();
   };
   
   var calcShotAccuracy = function (fire_xy, target_xy) {
@@ -436,17 +533,17 @@ var grogue = function ($, tilecodes, level_gen) {
   };
   
   var doPlayerShoot = function (mob) {
-	//alert("BANG!");
+	
 	var gun = my_player.equipGet(constants.equip.firearm);
 	var opp, adj, hyp, theta, player_xy, mob_xy, i, new_x, new_y, new_xy, points, impact_xy, terrain;
 	
 	if (gun === null) {
-	  alert("no gun!");
+	  $('#id_div_info_footer').html("You don't have anything to shoot!");
 	  return;
 	}
 	
 	if (gun.is_loaded !== true) {
-	  alert("reload!");
+	  $('#id_div_info_footer').html("Press SPACE to reload!");
 	  return;
 	}
 	var prob = calcShotAccuracy(my_player.getLocation(), mob.getLocation());
@@ -491,13 +588,13 @@ var grogue = function ($, tilecodes, level_gen) {
 		impact_xy = points[i];
 		terrain = my_dungeon.getTerrainAt(impact_xy);
 		if (terrain !== null && terrain.isWalkable() === false) {
-		  my_dungeon.setFeatureAt(impact_xy, feature_Blood);
+		  my_dungeon.setFeatureAt(impact_xy, lib.feature.blood);
 		  drawMapAt(impact_xy);
 		  break;
 		}
 	  }
   
-	  doMobDamage(mob, 5);
+	  doMobDamage(mob, gun.getDamage());
 	} else {
 	  my_audio.src = my_sounds['miss_' + Math.floor(Math.random()*4)];
 	  my_audio.play();
@@ -507,6 +604,8 @@ var grogue = function ($, tilecodes, level_gen) {
 	gun.is_loaded = false;
 	drawEquipment();
 	doPlayerAutoRearm(gun);
+	
+	endPlayerTurn();
   };
   
   var doPlayerAutoRearm = function (current_gun) {
@@ -518,7 +617,7 @@ var grogue = function ($, tilecodes, level_gen) {
 	
 	for (i = 0; i < items.length; i += 1) {
 	  item = items[i];
-	  if (compareItemToFamily(item, itemFamily_Firearm) && item.isLoaded()) {
+	  if (compareItemToFamily(item, lib.itemFamily.firearm) && item.isLoaded()) {
 		grab_me = item;
 		break;
 	  }
@@ -530,13 +629,19 @@ var grogue = function ($, tilecodes, level_gen) {
 	  drawInventory();
 	  drawEquipment();
 	} else {
-	  doPlayerYell("Yarrr... out of pistols!");
+	  doPlayerYell("Out of pistols!");
 	  //alert("no more loaded guns!!");
 	}
   };
   
   var doMobDamage = function (mob, damage) {
 	mob.health = mob.health - damage;
+	mob.last_hit = my_turn;
+	
+	if (compareMonsterToFamily(mob, lib.monsterFamily.player)) {
+	  drawPlayerInfo();
+	}
+	
 	if (mob.health <= 0) {
 	  doMobDeath(mob);
 	}
@@ -545,11 +650,18 @@ var grogue = function ($, tilecodes, level_gen) {
   var doMobDeath = function (mob) {
   // remove a mob from ye dungeon
   
-	var death_xy = mob.getLocation();
-	
-	my_dungeon.removeMonsterAt(death_xy);
-	my_dungeon.setFeatureAt(death_xy, feature_PoolOfBlood);
-	drawMapAt(death_xy);
+	if (compareMonsterToFamily(mob, lib.monsterFamily.player)) {
+	  // player died!
+	  //alert("congratulations! You have died.");
+	  gameOver();
+	  
+	} else {
+	  var death_xy = mob.getLocation();
+	  
+	  my_dungeon.removeMonsterAt(death_xy);
+	  my_dungeon.setFeatureAt(death_xy, lib.feature.generatePoolOfBlood());
+	  drawMapAt(death_xy);
+	}
 	
   };
   
@@ -565,13 +677,23 @@ var grogue = function ($, tilecodes, level_gen) {
 	  // reload!
 	  gun.is_loaded = true;
 	  drawEquipment();
+	  endPlayerTurn();
+	  
 	} else if (item !== null) {
-	  doPlayerPickupItem(item);
+	  if (item.is_container) {
+		if (!my_container_is_open) {
+		  doPlayerOpenContainer(item);
+		} else {
+		  doPlayerCloseContainer(item);
+		}
+	  } else {
+	   doPlayerPickupItem(item);
+	  }
 	} else {
 	  var check_unloaded = false;
 	  var items = my_player.inventoryGet();
 	  for (i = 0; i < items.length; i += 1) {
-		if (compareItemToFamily(items[i], itemFamily_Firearm) && !items[i].isLoaded()) {
+		if (compareItemToFamily(items[i], lib.itemFamily.firearm) && !items[i].isLoaded()) {
 		  items[i].is_loaded = true;
 		  check_unloaded = true;
 		  break;
@@ -581,16 +703,15 @@ var grogue = function ($, tilecodes, level_gen) {
 	  if (check_unloaded) {
 		doPlayerYell("Reloadin'!!");
 		drawInventory();
+		endPlayerTurn();
 		return;
 		
 	  } else {
-		doPlayerYell();
+		$('#id_div_info_footer').html('');
+		endPlayerTurn();
+		//doPlayerYell();
 	  }
 	}
-  };
-  
-  var hasUnloadedFirearms = function ( ) {
-  // returns true if the player has any unloaded firearms
   };
   
   var doPlayerInvisibleDebug = function ( ) {
@@ -642,22 +763,24 @@ var grogue = function ($, tilecodes, level_gen) {
 	  player_xy = my_player.getLocation();
 	  my_dungeon.removeItemAt(player_xy);
 
-	  if (compareItemToFamily(item, itemFamily_Booty) === true) {
+	  if (compareItemToFamily(item, lib.itemFamily.booty) === true) {
 		my_audio.src = my_sounds['booty_' + Math.floor(Math.random()*4)];
 		my_audio.play();
 	  }
 	  
 	  // todo: check to see if new weapon just picked up is better than current & automatically replace if so  
-	  if (compareItemToFamily(item, itemFamily_Blade) && my_player.equipGet(constants.equip.blade) === null) {
+	  if (compareItemToFamily(item, lib.itemFamily.blade) && my_player.equipGet(constants.equip.blade) === null) {
 		my_player.equipSet(constants.equip.blade, {"item": item, "index": my_player.inventoryGet().length - 1});
 		drawEquipment();
-		doPlayerYell("A fine blade!");
-	  } else if (compareItemToFamily(item, itemFamily_Firearm) && my_player.equipGet(constants.equip.firearm) === null) {
+		doPlayerYell("Finally, a blade!");
+		
+	  } else if (compareItemToFamily(item, lib.itemFamily.firearm) && my_player.equipGet(constants.equip.firearm) === null) {
 		my_player.equipSet(constants.equip.firearm, {"item": item, "index": my_player.inventoryGet().length - 1});
 		drawEquipment();
-		doPlayerYell("'tis a fine day for shootin'!");
+		doPlayerYell("This'll come in handy.");
 	  }
 	  
+	  endPlayerTurn();
 	  drawMapAt(player_xy);
 	  drawInventory();
 	  
@@ -679,7 +802,7 @@ var grogue = function ($, tilecodes, level_gen) {
   var doPlayerActivateItem = function (item, inv_index, equip_slot) {
 	var used_up = false;
 	
-	if (compareItemToFamily(item, itemFamily_Flask) === true) {
+	if (compareItemToFamily(item, lib.itemFamily.flask) === true) {
 	  used_up = doPlayerActionDrink(item);
 	  
 	} else {
@@ -702,9 +825,10 @@ var grogue = function ($, tilecodes, level_gen) {
 	my_audio.src = my_sounds['drink_' + Math.floor(Math.random()*5)];
 	my_audio.play();
 	  
+	doPlayerYell("Mmmmmm!");
 	my_player.drunk += 20;
 	drawPlayerInfo();
-	
+	endPlayerTurn();
 	return true;
   };
 
@@ -723,8 +847,78 @@ var grogue = function ($, tilecodes, level_gen) {
 	  my_dungeon.setItemAt(target_xy, thrown_item);
 	  drawMapAt(target_xy);
 	  drawEquipment();
+	  endPlayerTurn();
 	  return true;
 	}
+  };
+  
+  var doPlayerOpenContainer = function (container_item) {
+	if (compareItemToFamily(container_item, lib.itemFamily.mixingbarrel)) {
+	  my_audio.src = my_sounds['barrel_open'];
+	} else {
+	  my_audio.src = my_sounds['chest_open'];
+	}
+	my_audio.play();
+	
+	my_open_container = container_item;
+	my_container_is_open = true;
+	var my_div = $('#id_div_open_container').get()[0];
+	
+	$('#id_div_open_container').show();
+	my_div.style.position = 'absolute';
+	my_div.style.top = 100;
+	my_div.style.left = 100;
+	drawContainer();
+	$('#id_div_info_footer').html('Press SPACE again to close');
+	
+  };
+  
+  var doPlayerCloseContainer = function (container_item) {
+	if (!compareItemToFamily(container_item, lib.itemFamily.mixingbarrel)) {
+	  my_audio.src = my_sounds['chest_close'];
+	  my_audio.play();
+	}
+
+	my_open_container = {};
+	my_container_is_open = false;
+	$('#id_div_open_container').hide();
+	$('#id_div_info_footer').html('');
+	
+	doMixBarrel(container_item);
+  };
+  
+  var doMixBarrel = function (barrel) {
+	var i, item, inventory = barrel.inventoryGet();
+	var match_recipe, ingredients = {};
+	
+	// calculate ingredients
+	for (i = 0; i < inventory.length; i += 1) {
+	  item = inventory[i];
+	  if (!ingredients.hasOwnProperty(item.getName())) {
+		ingredients[item.getName()] = 0;
+	  }
+	  ingredients[item.getName()] += 1;
+	}
+	
+	match_recipe = getRecipeMatch(ingredients, inventory.length);
+	
+	if (match_recipe.success === true) {
+	  my_audio.src = my_sounds['mixing_' + Math.floor(Math.random()*2)];
+	  my_audio.play();
+	  my_dungeon.removeItemAt(my_player.getLocation());
+	  my_dungeon.setItemAt(my_player.getLocation(), match_recipe.item);
+	}
+  };
+  
+  var getRecipeMatch = function (ingredients, total_ingredients) {
+	var result = {"success": false, item: null};
+	
+	if (ingredients['grog'] === 3 && total_ingredients === 3) {
+	  result.success = true;
+	  result.item = itemFactory({name: 'Firerum', color: colors.red, family: lib.itemFamily.flask});
+	}
+	
+	return result;
   };
   
   ////////////////////////////////////////////////////////////////////////////////  
@@ -751,15 +945,15 @@ var grogue = function ($, tilecodes, level_gen) {
 	
 	var equip_slot, item = inv_result.item;
 	
-	if (compareItemToFamily(item, itemFamily_Blade) === true) {
+	if (compareItemToFamily(item, lib.itemFamily.blade) === true) {
 	  equip_slot = constants.equip.blade;
 	  doPlayerEquipItem(equip_slot, inv_result);
 	  
-	} else if (compareItemToFamily(item, itemFamily_Firearm) === true) {
+	} else if (compareItemToFamily(item, lib.itemFamily.firearm) === true) {
 	  equip_slot = constants.equip.firearm;
 	  doPlayerEquipItem(equip_slot, inv_result);
 	  
-	} else if (compareItemToFamily(item, itemFamily_Flask) === true) {
+	} else if (compareItemToFamily(item, lib.itemFamily.flask) === true) {
 	  equip_slot = constants.equip.ready_item;
 	  doPlayerEquipItem(equip_slot, inv_result);
 	  
@@ -839,10 +1033,62 @@ var grogue = function ($, tilecodes, level_gen) {
   };
   
   ////////////////////////////////////////////////////////////////////////////////  
+  // CONTAINERS
+  ////////////////////////////////////////////////////////////////////////////////
+
+  var getContainerItemFromCoords = function (grid_xy) {
+  // returns the container item and array index
+  
+	var inventory = my_open_container.inventoryGet();
+	var i, item;
+	
+	i = (grid_xy.y * constants.container_tiles_width) + grid_xy.x;
+	if (i >= inventory.length) {
+	  item = null;
+	} else {
+	  item = inventory[i];
+	}
+	
+	return {"item": item, "index": i};
+  }; 
+  
+  ////////////////////////////////////////////////////////////////////////////////  
   // MOUSE EVENTS
   ////////////////////////////////////////////////////////////////////////////////
+  var doContainerEventMousedown = function (grid_xy, button, shiftKey) {
+  // add to player's inventory if possible
+  
+	var inv_result, success;
+	
+	inv_result = getContainerItemFromCoords(grid_xy);
+	
+	if (inv_result.item !== null) {
+	  success = my_player.inventoryAdd(inv_result.item);
+	  
+	  if (success) {
+		my_open_container.inventoryRemove(inv_result.index);
+		drawInventory();
+		drawContainer();
+	  } else {
+		alert("Your inventory is full!");
+	  }
+	}
+  };
+  
+  var doContainerEventGainFocus = function (grid_xy) {
+    my_container_grid.drawBorderAt(grid_xy, colors.white);
+	var inv_result = getContainerItemFromCoords(grid_xy);
+	
+	if (inv_result.item !== null) {
+	  drawHoverInfo(inv_result.item, true);
+	}
+  };
+  
+  var doContainerEventLeaveFocus = function (grid_xy) {
+	drawContainer();
+  };
+  
   var doEventMousedown = function (grid_xy, button, shiftKey) {
-    //$('#id_div_click').html('<p>clicked on grid tile (' + grid_xy.x + ', ' + grid_xy.y + ')</p>');
 	
 	if (shiftKey === true) {
 	  doGameShiftClick(grid_xy);
@@ -854,7 +1100,7 @@ var grogue = function ($, tilecodes, level_gen) {
   };
   
   var doEventGainFocus = function (grid_xy) {
-    var html, mob, terrain, item, is_player, player_xy, border_color, map_xy;
+    var html, mob, terrain, item, memory, is_player, player_xy, border_color, map_xy;
     
 	border_color = colors.white;
     map_xy = {"x": grid_xy.x + my_screen.x, "y": grid_xy.y + my_screen.y};
@@ -868,24 +1114,26 @@ var grogue = function ($, tilecodes, level_gen) {
     item = my_dungeon.getItemAt(map_xy);
 	
 	if (!can_see) {
-	  // memories...
+	  memory = my_player.getMemoryAt(map_xy);
+	  if (memory !== null) {// && memory.objtype !== 'terrain') {
+		drawHoverInfo(memory);
+	  }
 	} else {
 	  if (mob !== null && !is_player) {
-		html = 'a ' + mob.getName() + ' is here';
+
 		if (calcShotAccuracy(player_xy, mob.getLocation()) >= 0.5) {
 		  border_color = colors.red;
 		}
-		drawHoverInfo(mob);
+		drawHoverInfo(mob, null, map_xy);
 	  } else if (item != null) {
-		html = 'you see a ' + item.getName();
-		drawHoverInfo(item);
+
+		drawHoverInfo(item, false, map_xy);
 	  } else {
-		html = terrain.getName();
+		drawHoverInfo(terrain, null, map_xy);
 	  }
 	}
     
-    html += ' at (' + map_xy.x + ', ' + map_xy.y + ')';
-    $('#id_div_hover').html(html);
+    $('#id_div_info_coords').html('(' + map_xy.x + ', ' + map_xy.y + ')');
     my_grid.drawBorderAt(grid_xy, border_color);
   };
   
@@ -899,7 +1147,18 @@ var grogue = function ($, tilecodes, level_gen) {
 	var inv_result = getInventoryItemFromCoords(grid_xy);
 
 	if (inv_result.item !== null) {
-	  if (shiftKey === true) {
+	  if (my_container_is_open) {
+		// put in container
+		success = my_open_container.inventoryAdd(inv_result.item);
+		if (success) {
+		  my_player.inventoryRemove(inv_result.index);
+		  drawInventory();
+		  drawContainer();
+		} else {
+		  alert("container is full!");
+		}
+		
+	  } else  if (shiftKey === true) {
 		// drop
 		return doInventoryShiftClick(inv_result);
 		
@@ -920,7 +1179,7 @@ var grogue = function ($, tilecodes, level_gen) {
 	var inv_result = getInventoryItemFromCoords(grid_xy);
 	
 	if (inv_result.item !== null) {
-	  drawHoverInfo(inv_result.item);
+	  drawHoverInfo(inv_result.item, true);
 	}
 	
   };
@@ -940,10 +1199,8 @@ var grogue = function ($, tilecodes, level_gen) {
 	} 
 	
 	if (item !== null) {
-	  drawHoverInfo(item);
+	  drawHoverInfo(item, true);
 	}
-	
-    $('#id_div_hover').html('equip: ' + grid_xy.x + ', ' + grid_xy.y);
   };
   
   var doEquipEventLeaveFocus = function (grid_xy) {
@@ -958,12 +1215,18 @@ var grogue = function ($, tilecodes, level_gen) {
 	var i, monsters = my_dungeon.getMonsters();
 	
 	for (i = 0; i < monsters.length; i += 1) {
-	  doMonsterTurn(monsters[i]);
+	  if (compareMonsterToFamily(monsters[i], lib.monsterFamily.player)) {
+		continue;
+	  } else if (monsters[i].hasFlag(flags.immobile)) {
+		continue;
+	  } else {
+	   doMonsterTurn(monsters[i]);
+	  }
 	} 
   };
   
   var doMonsterTurn = function (mob) {
-	var x, y, success, potential_xy, mob_xy = mob.getLocation(), player_xy = my_player.getLocation();
+	var x, y, success, can_attack, potential_xy, mob_xy = mob.getLocation(), player_xy = my_player.getLocation();
 	
 	// update my FOV
 	updateFov(mob);
@@ -978,9 +1241,17 @@ var grogue = function ($, tilecodes, level_gen) {
 	y = (y === 0) ? 0 : y / Math.abs(y);
 	
 	potential_xy = {"x": mob_xy.x + x, "y": mob_xy.y + y};
+	//alert("moving to: " + potential_xy.x + ", " + potential_xy.y);
 	success = canMonsterMove(mob, potential_xy);
+	can_attack = compareCoords(my_player.getLocation(), potential_xy) === true;
 	
-	if (success === true) {
+	if (can_attack) {
+  	  // attack
+	  //alert("hit yo");
+	  doMobDamage(my_player, 1);
+	  
+	} else if (success === true) {
+	  // move
 	  my_dungeon.removeMonsterAt(mob_xy);
 	  my_dungeon.setMonsterAt(potential_xy, mob);
 	  drawMapAt(mob_xy);
@@ -996,9 +1267,6 @@ var grogue = function ($, tilecodes, level_gen) {
 	}
 	
 	terrain = my_dungeon.getTerrainAt(potential_xy);
-	if (terrain === null) {
-	  alert("vas is dast");
-	}
 	if (terrain.isWalkable() === false) {
 	  return false;
 	}
@@ -1015,13 +1283,14 @@ var grogue = function ($, tilecodes, level_gen) {
   // GAME INIT
   ////////////////////////////////////////////////////////////////////////////////
 
-  initGame = function ( ) {
+  var initGame = function (player_name) {
     var result, i, u, locations, item, mob, booty;
     
-    my_player = monsterFactory({name: 'Hero', family: monsterFamily_Player});
+    my_player = monsterFactory({name: player_name, health: 100, family: lib.monsterFamily.player});
 	result = my_level_generator.createRandomCaveLevel(constants.game_tiles_width * 2, constants.game_tiles_height * 2);
     my_dungeon = result.level;
     my_dungeon.setMonsterAt(result.start_xy, my_player);
+	updateScreenOffset();
 	
 	locations = my_dungeon.getWalkableLocations().locations_xy;
 	fisherYates(locations);
@@ -1029,36 +1298,40 @@ var grogue = function ($, tilecodes, level_gen) {
 	// add items
 	for (i = 0; i < 20; i += 1) {
 	  u = Math.random();
-	  if (u < 0.25) {
-		item = itemFactory({name: 'sword', family: itemFamily_Blade});
-	  } else if (u < 0.50) {
-		item = firearmFactory({name: 'pistol', family: itemFamily_Firearm});
+	  if (u < 0.15) {
+		item = bladeFactory({name: 'Cutlass', damage: 2});
+	  } else if (u < 0.40) {
+		item = firearmFactory({name: 'Pistol', damage: 5});
 	  } else if (u < 0.75) {
-		item = itemFactory({name: 'grog', family: itemFamily_Flask});
+		item = itemFactory({name: 'Grog', family: lib.itemFamily.flask});
 	  } else {
-		item = itemFactory({name: 'grog', family: itemFamily_Flask});
+		
+		if (Math.random() < 0.5) {
+		  item = mixingBarrelFactory({name: 'pine barrel'});
+		} else {
+		  item = containerFactory({name: 'treasure chest'});
+		}
 	  }
 	  my_dungeon.setItemAt(locations[i], item);
 	}
-	my_dungeon.setItemAt(result.start_xy, firearmFactory({name: 'black pistol', family: itemFamily_Firearm}));
-	//my_dungeon.setItemAt(result.start_xy, itemFactory({name: 'treasure chest', family: itemFamily_Chest}));
 	
 	// add THE MONKIES
 	for (; i < 25; i += 1) {
-	  mob = monsterFactory({name: 'monkey', family: monsterFamily_Monkey});
+	  mob = monsterFactory({name: 'monkey', family: lib.monsterFamily.simian});
+	  //mob = monsterFactory({name: "powderkeg", family: monsterFamily_Barrel});
 	  my_dungeon.setMonsterAt(locations[i], mob);
 	}
 	
 	for (; i < 30; i += 1) {
 	  u = Math.random();
 	  if (u < 0.25) {
-		booty = itemFactory({family: itemFamily_Booty, name: "pieces o' eight", code: 'CENTS', color: '#DAA520'});
+		booty = itemFactory({family: lib.itemFamily.booty, name: "pieces o' eight", code: 'CENTS', color: '#DAA520'});
 	  } else if (u < 0.5) {
-		booty = itemFactory({family: itemFamily_Booty, name: "gold bars", code: 'POUND', color: '#FFD700'});
+		booty = itemFactory({family: lib.itemFamily.booty, name: "gold bars", code: 'POUND', color: '#FFD700'});
 	  } else if (u < 0.75) {
-		booty = itemFactory({family: itemFamily_Booty, name: "silver coins", code: 'DOLLAR', color: '#FFFACD'});
+		booty = itemFactory({family: lib.itemFamily.booty, name: "silver coins", code: 'DOLLAR', color: '#FFFACD'});
 	  } else {
-		booty = itemFactory({family: itemFamily_Booty, name: "doubloons", code: 'FRANC', color: colors.yellow});
+		booty = itemFactory({family: lib.itemFamily.booty, name: "doubloons", code: 'FRANC', color: colors.yellow});
 	  }
 	  my_dungeon.setItemAt(locations[i], booty);
 	}
@@ -1099,16 +1372,115 @@ var grogue = function ($, tilecodes, level_gen) {
 	my_sounds['drink_2'] = 'static/audio/drink_2.wav';
 	my_sounds['drink_3'] = 'static/audio/drink_3.wav';
 	my_sounds['drink_4'] = 'static/audio/drink_4.wav';
+	
+	my_sounds['chest_open'] = 'static/audio/chest_open.wav';
+	my_sounds['chest_close'] = 'static/audio/chest_close.wav';
+	
+	my_sounds['barrel_open'] = 'static/audio/barrel_open.wav';
+	
+	my_sounds['mixing_0'] = 'static/audio/mixing_0.wav';
+	my_sounds['mixing_1'] = 'static/audio/mixing_1.wav';
 
+  };
+  
+  var gameOver = function (cause) {
+	var x, y, grid_x, grid_y, max_y;
+	var death_level = levelFactory({'width': constants.game_tiles_width, 'height': constants.game_tiles_height});
+	var fore_color = colors.normal_fore, bg_color = colors.normal_bg;
+	
+	// prevents further keyboard input
+	my_game_over = true;
+	
+	// prevents mouseovers messing up the pretty RIP tombstone
+	my_grid.removeEventListeners();
+	my_inv_grid.removeEventListeners();
+	my_equip_grid.removeEventListeners();
+	  
+	for (x = 0; x < constants.game_tiles_width; x += 1) {
+      for (y = 0; y < constants.game_tiles_height; y += 1) {
+		
+		grid_x = x * constants.tile_dst_width;
+		grid_y = y * constants.tile_dst_height;
+
+		if (x === 0 || x === constants.game_tiles_width - 1)  {
+		  tile_code = 'I';
+		} else if (y === 0 || y === constants.game_tiles_height - 1) {
+		  tile_code = 'DASH';
+		} else {
+		  tile_code = 'SPACE'
+		}
+		
+		drawTileOn(ctx_game, my_tile_codes[tile_code], grid_x, grid_y, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	  }
+	}
+		
+	ctx_game.font = '20px Verdana';
+	ctx_game.textBaseline = 'top';
+	ctx_game.fillStyle = colors.grey_border;
+	//ctx_game.fillText("Congratulations!", constants.tile_dst_width, constants.tile_dst_height);
+	//ctx_game.fillText("You have died.", constants.tile_dst_width, constants.tile_dst_height * 2);
+	
+	max_y = constants.game_tiles_height * constants.tile_dst_height;
+	
+	ctx_game.font = '20px Verdana';
+	var name_length = ctx_game.measureText(my_player.getName()).width;
+	var total_length = 5 * constants.tile_dst_width;
+	var start_name_x = 5 * constants.tile_dst_width;
+	
+	if (name_length > total_length) {
+	  ctx_game.fillText(my_player.getName(), start_name_x, 6 * constants.tile_dst_height, total_length);
+	} else {
+	  ctx_game.fillText(my_player.getName(), start_name_x + Math.floor((total_length - name_length) / 2), 6 * constants.tile_dst_height, total_length);
+	}
+	
+	//ctx_game.textAlign = 'left';
+	ctx_game.fillText("Killed by a grue.", constants.tile_dst_width, max_y - constants.tile_dst_height * 4);
+	ctx_game.fillText("Total worth: &e0", constants.tile_dst_width, max_y - constants.tile_dst_height * 3);
+	ctx_game.fillText("Press SPACE to play again!", constants.tile_dst_width, max_y - constants.tile_dst_height * 2);
+	
+	//$('#id_div_info_footer').html('Press SPACE to restart');
+	
+	// tombstone sides
+	for (y = 5; y < 9; y += 1) {
+	  x = 4;
+	  grid_x = x * constants.tile_dst_width;
+	  grid_y = y * constants.tile_dst_height;
+	  drawTileOn(ctx_game, my_tile_codes['I'], grid_x, grid_y, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	  
+	  x = 10;
+	  grid_x = x * constants.tile_dst_width;
+	  drawTileOn(ctx_game, my_tile_codes['I'], grid_x, grid_y, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	}
+
+	// corners
+	drawTileOn(ctx_game, my_tile_codes['ASTERISK'], 0 * constants.tile_dst_width, 0 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	drawTileOn(ctx_game, my_tile_codes['ASTERISK'], (constants.game_tiles_width - 1) * constants.tile_dst_width, 0 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	drawTileOn(ctx_game, my_tile_codes['ASTERISK'], 0 * constants.tile_dst_width, (constants.game_tiles_height  - 1) * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	drawTileOn(ctx_game, my_tile_codes['ASTERISK'], (constants.game_tiles_width - 1) * constants.tile_dst_width, (constants.game_tiles_height - 1) * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+
+	// rest of the tombstone
+	drawTileOn(ctx_game, my_tile_codes['SLASH'], 5 * constants.tile_dst_width, 4 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	drawTileOn(ctx_game, my_tile_codes['BACK_SLASH'], 9 * constants.tile_dst_width, 4 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	
+	drawTileOn(ctx_game, my_tile_codes['DASH'], 6 * constants.tile_dst_width, 3 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	drawTileOn(ctx_game, my_tile_codes['DASH'], 7 * constants.tile_dst_width, 3 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	drawTileOn(ctx_game, my_tile_codes['DASH'], 8 * constants.tile_dst_width, 3 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	
+	drawTileOn(ctx_game, my_tile_codes['R'], 6 * constants.tile_dst_width, 5 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	drawTileOn(ctx_game, my_tile_codes['I'], 7 * constants.tile_dst_width, 5 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	drawTileOn(ctx_game, my_tile_codes['P'], 8 * constants.tile_dst_width, 5 * constants.tile_dst_height, constants.tile_dst_width, constants.tile_dst_height, fore_color, bg_color, true);	
+	
   };
   
   ////////////////////////////////////////////////////////////////////////////////  
   // PUBLIC FUNCTIONS
   ////////////////////////////////////////////////////////////////////////////////
   
-  that.init = function ( ) {
+  that.init = function (player_name) {
   // initalize canvas elements and load game elements
-  
+	player_name = player_name || 'Jack';
+	my_game_over = false;
+	
 	// main canvas display -- game grid
     var canvas = $('#id_cnv_game').get()[0];
     my_grid = gridmangler(canvas, constants.tile_dst_width, constants.tile_dst_height);
@@ -1156,45 +1528,81 @@ var grogue = function ($, tilecodes, level_gen) {
 	ctx_hoverinfo.fillStyle = colors.normal_bg;
 	ctx_hoverinfo.fillRect(0, 0, constants.hoverinfo_width, constants.hoverinfo_height);
 	
-    initGame();
+	// container floater
+	cnv_container = $('#id_cnv_container').get()[0];
+	ctx_container = cnv_container.getContext("2d");
+	my_container_grid = gridmangler(cnv_container, constants.tile_dst_width , constants.tile_dst_height);
+	my_container_grid.addGridEvent("mousedown", doContainerEventMousedown);
+	my_container_grid.addGridEvent("gainfocus", doContainerEventGainFocus);
+	my_container_grid.addGridEvent("leavefocus", doContainerEventLeaveFocus);
+	
+    initGame(player_name);
   };
 
   // keyboard
   ////////////////////////////////////////////////////////////////////////////////
   that.keypress = function (e) {
 	var offset_xy;
-	if ((e.keyCode === 37) || (e.keyCode == 65)) {
-	  // left + a
-	  offset_xy = {x: -1, y: 0};
-	  doPlayerMove(offset_xy);
-
-	} else if ((e.keyCode === 39) || (e.keyCode == 68)) {
-	  // right + d
-	  offset_xy = {x: 1, y: 0};
-	  doPlayerMove(offset_xy);
-
-	} else if ((e.keyCode === 38) || (e.keyCode == 87)) {
-	  // up + w
-	  offset_xy = {x: 0, y: -1};
-	  doPlayerMove(offset_xy);
-
-	} else if ((e.keyCode === 40) || (e.keyCode == 83)) {
-	  // down + s
-	  offset_xy = {x: 0, y: 1};
-	  doPlayerMove(offset_xy);
+	
+	if (my_game_over) {
+	  if (e.keyCode === 32) {
+	  	var old_name = my_player.getName();
+		this.init(old_name);
+	  }
+	  return;
 	  
-	} else if (e.keyCode === 32) {
-	  // space
-	  doPlayerAction();
-	  
-	} else if (e.keyCode === 70) {
-	  // f
-	  doPlayerInvisibleDebug();
-	} else if (e.keyCode === 81) {
-	  // q
-	  doPlayerActivateReadyItem();
+	};
+	
+	if (!my_container_is_open) {
+	  if ((e.keyCode === 37) || (e.keyCode == 65) || (e.keyCode == 72)) {
+		// left + a + h
+		offset_xy = {x: -1, y: 0};
+		doPlayerMove(offset_xy);
+  
+	  } else if ((e.keyCode === 39) || (e.keyCode == 68) || (e.keyCode == 76)) {
+		// right + d + l
+		offset_xy = {x: 1, y: 0};
+		doPlayerMove(offset_xy);
+  
+	  } else if ((e.keyCode === 38) || (e.keyCode == 87) || (e.keyCode == 75)) {
+		// up + w + k
+		offset_xy = {x: 0, y: -1};
+		doPlayerMove(offset_xy);
+  
+	  } else if ((e.keyCode === 40) || (e.keyCode == 83) || (e.keyCode == 74)) {
+		// down + s + j
+		offset_xy = {x: 0, y: 1};
+		doPlayerMove(offset_xy);
+		
+	  } else if (e.keyCode === 32) {
+		// space
+		doPlayerAction();
+		
+	  } else if (e.keyCode === 70) {
+		// f
+		doPlayerInvisibleDebug();
+		
+	  } else if (e.keyCode === 81) {
+		// q
+		doPlayerActivateReadyItem();
+	  }
+	} else {
+	  if (e.keyCode === 32) {
+		// space
+		doPlayerAction();
+	  }
 	}
 	  
+  };
+  
+  that.playerChangeName = function (new_name) {
+	
+	my_player.setName(new_name);
+	drawPlayerInfo();
+  };
+  
+  that.getVersion = function ( ) {
+	return my_version;
   };
 
   return that;
