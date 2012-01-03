@@ -913,9 +913,9 @@ var grogue = function ($, tilecodes, level_gen) {
   var getRecipeMatch = function (ingredients, total_ingredients) {
 	var result = {"success": false, item: null};
 	
-	if (ingredients['grog'] === 3 && total_ingredients === 3) {
+	if (ingredients['Grog'] === 3 && total_ingredients === 3) {
 	  result.success = true;
-	  result.item = itemFactory({name: 'Firerum', color: colors.red, family: lib.itemFamily.flask});
+	  result.item = itemFactory({name: 'Fire Rum', color: colors.red, family: lib.itemFamily.flask});
 	}
 	
 	return result;
